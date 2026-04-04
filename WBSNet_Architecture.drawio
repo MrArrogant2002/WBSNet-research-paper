@@ -1,0 +1,346 @@
+<mxfile host="65bd71144e">
+    <diagram id="WBSNet_Architecture" name="WBSNet Full Architecture">
+        <mxGraphModel dx="720" dy="915" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3300" pageHeight="2400" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="&lt;b&gt;WBSNet: Wavelet-Guided Boundary-Aware Skip Connections for Medical Image Segmentation&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;fontSize=18;fontColor=#1F4E79;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="20" width="900" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="input" value="&lt;b&gt;Input Image&lt;/b&gt;&lt;br&gt;H × W × 3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="400" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="enc_title" value="&lt;b&gt;ENCODER (ResNet-34)&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1a5276;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="80" width="280" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="enc1" value="&lt;b&gt;Skip Source 1&lt;/b&gt;&lt;br&gt;Stem + ReLU&lt;br&gt;H/2 × W/2 × 64" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="130" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="enc2" value="&lt;b&gt;Skip Source 2&lt;/b&gt;&lt;br&gt;Layer1 (after maxpool)&lt;br&gt;H/4 × W/4 × 64" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="260" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="enc3" value="&lt;b&gt;Skip Source 3&lt;/b&gt;&lt;br&gt;Layer2&lt;br&gt;H/8 × W/8 × 128" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="400" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="enc4" value="&lt;b&gt;Skip Source 4&lt;/b&gt;&lt;br&gt;Layer3&lt;br&gt;H/16 × W/16 × 256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="540" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_inp_1" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="input" target="enc1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="enc1" target="enc2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="enc2" target="enc3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e34" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="enc3" target="enc4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="bottleneck" value="&lt;b&gt;Layer4 / Bottleneck&lt;/b&gt;&lt;br&gt;Deepest encoder feature&lt;br&gt;H/32 × W/32 × 512" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="680" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4b" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="enc4" target="bottleneck" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="wbs_title" value="&lt;b&gt;WBS Modules (Wavelet Boundary Skip)&lt;/b&gt;&lt;br&gt;&lt;i&gt;Replaces standard skip connections&lt;/i&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#c0392b;fontStyle=0;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="80" width="340" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="wbs1" value="&lt;b&gt;WBS Module 1&lt;/b&gt;&lt;br&gt;Stem / ReLU (64 ch)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="130" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="wbs2" value="&lt;b&gt;WBS Module 2&lt;/b&gt;&lt;br&gt;Layer1 (64 ch)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="260" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="wbs3" value="&lt;b&gt;WBS Module 3&lt;/b&gt;&lt;br&gt;Layer2 (128 ch)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="400" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="wbs4" value="&lt;b&gt;WBS Module 4&lt;/b&gt;&lt;br&gt;Layer3 (256 ch)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="540" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="skip1" value="skip" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;dashed=1;" parent="1" source="enc1" target="wbs1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="skip2" value="skip" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;dashed=1;" parent="1" source="enc2" target="wbs2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="skip3" value="skip" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;dashed=1;" parent="1" source="enc3" target="wbs3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="skip4" value="skip" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;dashed=1;" parent="1" source="enc4" target="wbs4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec_title" value="&lt;b&gt;DECODER&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#196f3d;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="80" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec4" value="&lt;b&gt;Decoder Stage 4&lt;/b&gt;&lt;br&gt;Upsample + Concat(WBS4) + 2×Conv&lt;br&gt;H/16 × W/16 × 256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="540" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec3" value="&lt;b&gt;Decoder Stage 3&lt;/b&gt;&lt;br&gt;Upsample + Concat(WBS3) + 2×Conv&lt;br&gt;H/8 × W/8 × 128" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="400" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec2" value="&lt;b&gt;Decoder Stage 2&lt;/b&gt;&lt;br&gt;Upsample + Concat(WBS2) + 2×Conv&lt;br&gt;H/4 × W/4 × 64" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="260" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec1" value="&lt;b&gt;Decoder Stage 1&lt;/b&gt;&lt;br&gt;Upsample + Concat(WBS1) + 2×Conv&lt;br&gt;H/2 × W/2 × 32" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="130" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="b_d4" style="edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;entryX=0.5;entryY=1;" parent="1" source="bottleneck" target="dec4" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1040" y="715"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="w1d1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" parent="1" source="wbs1" target="dec1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="w2d2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" parent="1" source="wbs2" target="dec2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="w3d3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" parent="1" source="wbs3" target="dec3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="w4d4" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" parent="1" source="wbs4" target="dec4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="d4d3" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="dec4" target="dec3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="d3d2" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="dec3" target="dec2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="d2d1" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="dec2" target="dec1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="seg_head" value="&lt;b&gt;Final Upsample&lt;/b&gt;&lt;br&gt;2× Bilinear Upsample&lt;br&gt;H × W × 32" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="1220" y="130" width="180" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="d1_seg" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="dec1" target="seg_head" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="seg_out" value="&lt;b&gt;Segmentation Head&lt;/b&gt;&lt;br&gt;Conv 1×1 (logits)&lt;br&gt;H × W × 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1460" y="130" width="180" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="sh_so" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="seg_head" target="seg_out" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="bnd_out" value="&lt;b&gt;Segmentation&lt;br&gt;Logits&lt;/b&gt;&lt;br&gt;logits_seg" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1700" y="130" width="120" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="bh_bo" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="seg_out" target="bnd_out" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="loss_title" value="&lt;b&gt;LOSS FUNCTIONS&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#7b241c;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1450" y="380" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="loss_seg" value="&lt;b&gt;L_seg&lt;/b&gt; = BCEWithLogits + Dice" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="1420" y="420" width="180" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="loss_bnd" value="&lt;b&gt;L_bnd&lt;/b&gt; = mean_k BCEWithLogits(M_bnd^(k), edge_k)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="1380" y="470" width="260" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="loss_total" value="&lt;b&gt;L_total = L_seg + λ · L_bnd&lt;/b&gt;&lt;br&gt;(λ = 0.5)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="1420" y="530" width="180" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="ls_lt" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="loss_seg" target="loss_total" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lb_lt" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="loss_bnd" target="loss_total" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="detail_title" value="&lt;b&gt;DETAILED VIEW: WBS Module (Wavelet Boundary Skip) — Our Core Contribution&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;fontColor=#c0392b;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="820" width="800" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="detail_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#cccccc;strokeWidth=2;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="870" width="1550" height="520" as="geometry"/>
+                </mxCell>
+                <mxCell id="enc_feat" value="&lt;b&gt;Encoder Feature&lt;/b&gt;&lt;br&gt;F_enc&lt;br&gt;H_i × W_i × C_i" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="1040" width="150" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="dwt" value="&lt;b&gt;2D Haar DWT&lt;/b&gt;&lt;br&gt;Discrete Wavelet&lt;br&gt;Transform" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6d0de;strokeColor=#996699;fontSize=11;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="1040" width="150" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ef_dwt" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" parent="1" source="enc_feat" target="dwt" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll" value="&lt;b&gt;LL (Low-Freq)&lt;/b&gt;&lt;br&gt;Structure / Semantic&lt;br&gt;H_i/2 × W_i/2 × C_i" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="530" y="920" width="170" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="hf" value="&lt;b&gt;HF (LH + HL + HH)&lt;/b&gt;&lt;br&gt;Edges / Boundaries&lt;br&gt;H_i/2 × W_i/2 × 3C_i" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="530" y="1100" width="170" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="dwt_ll" value="LL" style="edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.25;entryX=0;entryY=0.5;strokeColor=#82b366;strokeWidth=2;" parent="1" source="dwt" target="ll" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="dwt_hf" value="LH,HL,HH" style="edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.75;entryX=0;entryY=0.5;strokeColor=#d6b656;strokeWidth=2;" parent="1" source="dwt" target="hf" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lfsa" value="&lt;b&gt;LFSA&lt;/b&gt;&lt;br&gt;Low-Frequency&lt;br&gt;Semantic Attention&lt;br&gt;&lt;i&gt;(Channel Attention / SE)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#27ae60;fontSize=10;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="770" y="900" width="170" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_lfsa" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" parent="1" source="ll" target="lfsa" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="hfba" value="&lt;b&gt;HFBA&lt;/b&gt;&lt;br&gt;High-Frequency&lt;br&gt;Boundary Attention&lt;br&gt;&lt;i&gt;(DWConv + PWConv + logits)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#e67e22;fontSize=10;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="770" y="1080" width="170" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="hf_hfba" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" parent="1" source="hf" target="hfba" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="bnd_gt" value="&lt;b&gt;Boundary GT&lt;/b&gt;&lt;br&gt;Resize(edge(y))&lt;br&gt;BCEWithLogits on M_bnd" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;strokeWidth=2;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="770" y="1250" width="170" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="bgt_hfba" value="supervision" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#e67e22;strokeWidth=1;dashed=1;" parent="1" source="bnd_gt" target="hfba" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="ell" value="&lt;b&gt;LL&#39;&lt;/b&gt;&lt;br&gt;Enhanced&lt;br&gt;Low-Freq" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#27ae60;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="920" width="110" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="lfsa_ell" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#27ae60;strokeWidth=2;" parent="1" source="lfsa" target="ell" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="ehf" value="&lt;b&gt;HF_attended&lt;/b&gt;&lt;br&gt;Reused as&lt;br&gt;LH&#39; = HL&#39; = HH&#39;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#e67e22;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="1100" width="110" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="hfba_ehf" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#e67e22;strokeWidth=2;" parent="1" source="hfba" target="ehf" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="idwt" value="&lt;b&gt;2D Haar IDWT&lt;/b&gt;&lt;br&gt;IDWT(LL&#39;, HF_attended, HF_attended, HF_attended)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6d0de;strokeColor=#996699;fontSize=11;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="1190" y="1020" width="150" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ell_idwt" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#27ae60;strokeWidth=2;" parent="1" source="ell" target="idwt" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="ehf_idwt" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#e67e22;strokeWidth=2;" parent="1" source="ehf" target="idwt" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="skip_out" value="&lt;b&gt;Enhanced Skip&lt;br&gt;Feature F_skip&#39;&lt;/b&gt;&lt;br&gt;H_i × W_i × C_i&lt;br&gt;→ To Decoder" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#196f3d;fontSize=11;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="1410" y="1020" width="160" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="idwt_out" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#196f3d;strokeWidth=2;" parent="1" source="idwt" target="skip_out" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lfsa_detail_title" value="&lt;b&gt;LFSA Detail&lt;/b&gt;" style="text;html=1;align=center;fontSize=11;fontColor=#27ae60;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="1430" width="120" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="lfsa_box" value="LL → GlobalAvgPool → FC(C→C/r) → ReLU → FC(C/r→C) → Sigmoid → Scale LL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#27ae60;fontSize=9;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="1460" width="500" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="hfba_detail_title" value="&lt;b&gt;HFBA Detail&lt;/b&gt;" style="text;html=1;align=center;fontSize=11;fontColor=#e67e22;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="1430" width="120" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="hfba_box" value="[LH,HL,HH] → DWConv3×3 → PWConv1×1 → BN → ReLU&lt;br&gt;M_bnd logits = Conv1×1(HF_reduced), A_bnd = sigmoid(M_bnd)&lt;br&gt;HF_attended = HF_reduced ⊙ A_bnd, supervised with BCEWithLogits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#e67e22;fontSize=9;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="1460" width="500" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_title" value="&lt;b&gt;LEGEND&lt;/b&gt;" style="text;html=1;align=left;fontSize=12;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="640" width="80" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="670" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg1t" value="Encoder" style="text;html=1;align=left;fontSize=9;" parent="1" vertex="1">
+                    <mxGeometry x="1275" y="667" width="60" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="695" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg2t" value="Decoder" style="text;html=1;align=left;fontSize=9;" parent="1" vertex="1">
+                    <mxGeometry x="1275" y="692" width="60" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="720" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg3t" value="WBS Module (Ours)" style="text;html=1;align=left;fontSize=9;" parent="1" vertex="1">
+                    <mxGeometry x="1275" y="717" width="110" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg4" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6d0de;strokeColor=#996699;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="745" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg4t" value="Wavelet Transform" style="text;html=1;align=left;fontSize=9;" parent="1" vertex="1">
+                    <mxGeometry x="1275" y="742" width="110" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg5" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="770" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg5t" value="Segmentation Output" style="text;html=1;align=left;fontSize=9;" parent="1" vertex="1">
+                    <mxGeometry x="1275" y="767" width="110" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg6" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="795" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg6t" value="Boundary Supervision" style="text;html=1;align=left;fontSize=9;" parent="1" vertex="1">
+                    <mxGeometry x="1275" y="792" width="120" height="20" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="WBS_Module_Detail" name="WBS Module Internals">
+        <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="d2_title" value="&lt;b&gt;WBS Module — Internal Data Flow&lt;/b&gt;" style="text;html=1;align=center;fontSize=16;fontColor=#1F4E79;" vertex="1" parent="1">
+                    <mxGeometry x="400" y="20" width="400" height="35" as="geometry"/>
+                </mxCell>
+                <!-- Step 1 -->
+                <mxCell id="s1" value="&lt;b&gt;Step 1: Input&lt;/b&gt;&lt;br&gt;Encoder feature F_enc&lt;br&gt;Shape: [B, C, H, W]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="100" width="180" height="70" as="geometry"/>
+                </mxCell>
+                <!-- Step 2 -->
+                <mxCell id="s2" value="&lt;b&gt;Step 2: DWT&lt;/b&gt;&lt;br&gt;Apply 2D Haar Wavelet&lt;br&gt;LL: [B, C, H/2, W/2]&lt;br&gt;LH,HL,HH: each [B, C, H/2, W/2]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6d0de;strokeColor=#996699;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="340" y="80" width="220" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="s1s2" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" edge="1" source="s1" target="s2" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <!-- Step 3a: LFSA -->
+                <mxCell id="s3a" value="&lt;b&gt;Step 3a: LFSA&lt;/b&gt;&lt;br&gt;LL → GAP → FC → ReLU → FC → σ&lt;br&gt;Channel weights w ∈ R^C&lt;br&gt;LL&#39; = LL ⊙ w" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#27ae60;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="640" y="80" width="220" height="90" as="geometry"/>
+                </mxCell>
+                <!-- Step 3b: HFBA -->
+                <mxCell id="s3b" value="&lt;b&gt;Step 3b: HFBA&lt;/b&gt;&lt;br&gt;HF = cat(LH,HL,HH) → [B, 3C, H/2, W/2]&lt;br&gt;→ DWConv3×3 → PWConv1×1 → BN → ReLU&lt;br&gt;→ Conv1×1 = M_bnd logits&lt;br&gt;HF_attended = HF_reduced ⊙ sigmoid(M_bnd)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#e67e22;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="640" y="220" width="250" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="s2s3a" value="LL" style="edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.3;entryX=0;entryY=0.5;strokeColor=#27ae60;strokeWidth=2;" edge="1" source="s2" target="s3a" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="s2s3b" value="LH,HL,HH" style="edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.7;entryX=0;entryY=0.5;strokeColor=#e67e22;strokeWidth=2;" edge="1" source="s2" target="s3b" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <!-- Boundary GT Supervision -->
+                <mxCell id="bgt2" value="&lt;b&gt;Boundary GT&lt;/b&gt;&lt;br&gt;(training only)&lt;br&gt;BCEWithLogits(M_bnd, resized edge GT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;dashed=1;" vertex="1" parent="1">
+                    <mxGeometry x="640" y="380" width="250" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="s3b_bgt" value="supervise" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;dashed=1;" edge="1" source="s3b" target="bgt2" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <!-- Step 4: IDWT -->
+                <mxCell id="s4" value="&lt;b&gt;Step 4: IDWT&lt;/b&gt;&lt;br&gt;Reuse HF_attended for LH&#39;, HL&#39;, HH&#39;&lt;br&gt;F_skip&#39; = IDWT(LL&#39;, HF_attended, HF_attended, HF_attended)&lt;br&gt;Shape: [B, C, H, W]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6d0de;strokeColor=#996699;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="980" y="160" width="220" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="s3as4" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#27ae60;strokeWidth=2;" edge="1" source="s3a" target="s4" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="s3bs4" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#e67e22;strokeWidth=2;" edge="1" source="s3b" target="s4" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <!-- Step 5: Concat + Output -->
+                <mxCell id="s5" value="&lt;b&gt;Step 5: Output&lt;/b&gt;&lt;br&gt;F_skip&#39; concatenated with&lt;br&gt;upsampled decoder feature&lt;br&gt;→ Decoder Conv Block" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#196f3d;fontSize=10;strokeWidth=2;" vertex="1" parent="1">
+                    <mxGeometry x="1280" y="160" width="220" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="s4s5" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#196f3d;strokeWidth=2;" edge="1" source="s4" target="s5" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <!-- Equations box -->
+                <mxCell id="eqs" value="&lt;b&gt;Key Equations:&lt;/b&gt;&lt;br&gt;(LL, LH, HL, HH) = DWT(F_enc)&lt;br&gt;LL&#39; = LL ⊙ σ(FC₂(ReLU(FC₁(GAP(LL)))))&lt;br&gt;HF = Concat(LH, HL, HH)&lt;br&gt;M_bnd = Conv1×1(ReLU(BN(PWConv(DWConv(HF)))))&lt;br&gt;HF_attended = HF_reduced ⊙ sigmoid(M_bnd)&lt;br&gt;F_skip&#39; = IDWT(LL&#39;, HF_attended, HF_attended, HF_attended)&lt;br&gt;L_total = BCEWithLogits + Dice + λ · mean_k BCEWithLogits(M_bnd^(k), edge_k)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="500" width="420" height="170" as="geometry"/>
+                </mxCell>
+                <!-- Parameter count box -->
+                <mxCell id="params" value="&lt;b&gt;Parameter Overhead per WBS Module:&lt;/b&gt;&lt;br&gt;LFSA: 2 × FC layers ≈ 2C²/r&lt;br&gt;HFBA: DWConv3×3 + PWConv1×1 + logits head&lt;br&gt;Depthwise-separable HFBA keeps the skip module lightweight&lt;br&gt;&lt;br&gt;&lt;b&gt;Estimated total overhead (4 modules):&lt;/b&gt;&lt;br&gt;C = [64, 64, 128, 256] → ~1.1M additional params&lt;br&gt;(with r=16 reduction ratio)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="560" y="500" width="380" height="170" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
