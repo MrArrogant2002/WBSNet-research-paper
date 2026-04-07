@@ -6,21 +6,39 @@ Wavelet Boundary Skip Network for medical image segmentation.
 The repo includes:
 
 - A pure PyTorch implementation of `WBSNet` with four WBS skip modules.
-- Baseline and ablation support through config flags.
+- Baseline and ablation support through YAML config flags.
 - Training, evaluation, prediction export, and paper-statistics aggregation.
 - Single-GPU and multi-GPU execution through `torchrun`.
-- Weights & Biases logging with `.env` support.
+- Weights & Biases logging through `.env`.
+- Beginner-friendly DGX helper scripts for setup, hardware checks, and launching runs.
 
 ## What This Repo Produces
 
-Each experiment run writes the artifacts needed for paper drafting:
+Each run writes artifacts that are useful for paper writing:
 
-- `metrics.csv`: epoch-by-epoch train/val metrics.
-- `best_metrics.json`: best validation snapshot.
-- `run_summary.json`: compact run metadata for aggregation.
-- `predictions/`: saved masks and overlays for qualitative figures.
-- `evaluation/<dataset>.json`: per-dataset test metrics.
-- `aggregated_results.*`: merged tables across multiple seeds or variants.
+- `metrics.csv`: epoch-by-epoch train and validation metrics
+- `best_metrics.json`: best validation snapshot
+- `run_summary.json`: compact run metadata for aggregation
+- `evaluation/<dataset>.json`: final evaluation metrics
+- `predictions/`: masks and overlays for qualitative figures
+- `aggregated_results.*`: merged outputs across seeds and variants
+- `artifacts/system_report.json`: DGX hardware and package report
+
+## Datasets To Download
+
+Recommended order:
+
+1. `Kvasir-SEG`
+2. `CVC-ClinicDB`
+3. `CVC-ColonDB`
+4. `ISIC2018`
+
+How they are used:
+
+- `Kvasir-SEG`: first smoke test and main polyp benchmark
+- `CVC-ClinicDB`: second in-domain polyp benchmark
+- `CVC-ColonDB`: cross-dataset generalization evaluation
+- `ISIC2018`: skin lesion benchmark
 
 ## Expected Dataset Layout
 
@@ -42,44 +60,128 @@ data/
     masks/
 ```
 
-If your folders differ, update the matching config in `configs/`.
+Important:
 
-## Quick Start On A DGX Server
+- Image and mask filenames must have the same stem, such as `0001.jpg` and `0001.png`
+- If your downloaded dataset uses a different folder structure, either reorganize it or override `dataset.root`, `dataset.image_dir`, and `dataset.mask_dir`
 
-1. Create the environment:
+## Simple DGX Workflow
+
+If you are new to DGX, follow this exact order.
+
+### 1. Connect to the server
 
 ```bash
-bash scripts/setup_dgx.sh wbsnet
-conda activate wbsnet
+ssh your_username@your_dgx_ip
 ```
 
-2. Check the detected GPUs, CUDA stack, and installed packages:
+### 2. Start a persistent terminal session
 
 ```bash
+tmux new -s wbsnet
+```
+
+Detach without stopping the job:
+
+```bash
+Ctrl+b then d
+```
+
+Reattach later:
+
+```bash
+tmux attach -t wbsnet
+```
+
+### 3. Copy the repo to the DGX
+
+Run this from your local machine:
+
+```bash
+rsync -avhP /home/eswarbalu/Desktop/WBSNET-paper/ your_username@your_dgx_ip:~/WBSNET-paper/
+```
+
+### 4. Upload the first dataset
+
+Start with `Kvasir-SEG` only.
+
+Run this from your local machine:
+
+```bash
+rsync -avhP ~/datasets/Kvasir-SEG/ your_username@your_dgx_ip:~/wbsnet-data/Kvasir-SEG/
+```
+
+### 5. Set up the environment on the DGX
+
+```bash
+cd ~/WBSNET-paper
+bash scripts/setup_dgx.sh wbsnet
+conda activate wbsnet
 python3 scripts/check_system.py
 ```
 
-3. Check that your `.env` contains either `WANDB_API_KEY` or `WAND_API_KEY`.
-
-4. Train the full model:
+### 6. Run a 1-GPU smoke test first
 
 ```bash
-bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 8
+bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 1 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
 ```
 
-5. Evaluate the best checkpoint:
+### 7. Run the real multi-GPU experiment
 
 ```bash
-python evaluate.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/kvasir_wbsnet/<run_name>/checkpoints/best.pt
+bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 8 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG
 ```
 
-6. Aggregate repeated runs for the paper:
+### 8. Evaluate and aggregate
 
 ```bash
+python evaluate.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/kvasir_wbsnet/<run_name>/checkpoints/best.pt --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG
 python aggregate_results.py --root outputs --output outputs/aggregated
 ```
 
-If your DGX is attached to a scheduler, submit with:
+## Dataset Upload Options
+
+### Option 1: Upload from your laptop with `rsync`
+
+```bash
+rsync -avhP ~/datasets/Kvasir-SEG/ your_username@your_dgx_ip:~/wbsnet-data/Kvasir-SEG/
+rsync -avhP ~/datasets/CVC-ClinicDB/ your_username@your_dgx_ip:~/wbsnet-data/CVC-ClinicDB/
+rsync -avhP ~/datasets/CVC-ColonDB/ your_username@your_dgx_ip:~/wbsnet-data/CVC-ColonDB/
+rsync -avhP ~/datasets/ISIC2018/ your_username@your_dgx_ip:~/wbsnet-data/ISIC2018/
+```
+
+### Option 2: Copy archive files and extract on the DGX
+
+```bash
+scp Kvasir-SEG.zip your_username@your_dgx_ip:~/wbsnet-data/
+ssh your_username@your_dgx_ip
+cd ~/wbsnet-data
+unzip -q Kvasir-SEG.zip -d Kvasir-SEG
+```
+
+### Option 3: Download directly on the DGX
+
+If the DGX has internet access, download and extract the datasets directly into `~/wbsnet-data/`.
+
+## Quick Start On A DGX Server
+
+```bash
+cd ~/WBSNET-paper
+bash scripts/setup_dgx.sh wbsnet
+conda activate wbsnet
+python3 scripts/check_system.py
+bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 1 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
+```
+
+If the smoke test passes, launch the real run:
+
+```bash
+bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 8 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG
+```
+
+## Slurm Workflow
+
+If your DGX is attached to a scheduler:
 
 ```bash
 sbatch scripts/slurm_train.sh configs/kvasir_wbsnet.yaml
@@ -87,28 +189,28 @@ sbatch scripts/slurm_train.sh configs/kvasir_wbsnet.yaml
 
 ## Main Commands
 
-Train:
+Train on the current machine:
 
 ```bash
 python train.py --config configs/kvasir_wbsnet.yaml
 ```
 
-Multi-GPU train on DGX:
+Train on DGX:
 
 ```bash
 bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 8
 ```
 
-Generate a hardware report:
+Run a 1-epoch debug pass:
 
 ```bash
-python3 scripts/check_system.py
+bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 1 --override train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
 ```
 
-Run the ablation suite:
+Evaluate:
 
 ```bash
-python scripts/run_ablation_suite.py --base-config configs/kvasir_wbsnet.yaml --seeds 3407 3408 3409
+python evaluate.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/kvasir_wbsnet/<run_name>/checkpoints/best.pt
 ```
 
 Export qualitative predictions:
@@ -117,49 +219,96 @@ Export qualitative predictions:
 python predict.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/.../checkpoints/best.pt --split test
 ```
 
+Aggregate results:
+
+```bash
+python aggregate_results.py --root outputs --output outputs/aggregated
+```
+
+Run the ablation suite:
+
+```bash
+python scripts/run_ablation_suite.py --seeds 3407 3408 3409
+```
+
+Generate a hardware report:
+
+```bash
+python3 scripts/check_system.py
+```
+
+Verify the repo:
+
+```bash
+python3 scripts/verify_repo.py
+```
+
 ## Config Notes
 
-The experiment behavior is controlled entirely by YAML:
+The experiment behavior is controlled through YAML in `configs/`.
 
+Useful knobs:
+
+- `dataset.root`
+- `dataset.image_dir`
+- `dataset.mask_dir`
+- `train.epochs`
+- `train.batch_size`
+- `runtime.wandb.mode`
 - `model.use_wavelet`
 - `model.use_lfsa`
 - `model.use_hfba`
 - `model.boundary_supervision`
 - `model.wavelet_type`
 
-These switches support the baseline and ablation variants described in the paper plan.
+You can override config values from the command line:
+
+```bash
+python train.py --config configs/kvasir_wbsnet.yaml --override train.epochs=5 train.batch_size=4
+```
 
 ## W&B Note
 
-This repo accepts either `WANDB_API_KEY` or the existing `WAND_API_KEY` from your `.env`. If only `WAND_API_KEY` exists, it is mapped automatically to `WANDB_API_KEY` at runtime.
+This repo accepts either `WANDB_API_KEY` or the existing `WAND_API_KEY` from `.env`.
+If only `WAND_API_KEY` exists, it is mapped automatically to `WANDB_API_KEY` at runtime.
 
-## Repo Layout
+For smoke tests, use offline mode:
+
+```bash
+--override runtime.wandb.mode=offline
+```
+
+## Current Repo Layout
 
 ```text
+configs/
+scripts/
 wbsnet/
   data/
   models/
   utils/
-configs/
-scripts/
 train.py
 evaluate.py
 predict.py
 aggregate_results.py
+requirements.txt
+environment.yml
 ```
 
-## Verification
+## Helper Scripts
 
-Use the lightweight verifier after editing:
+- `scripts/setup_dgx.sh`: create or update the DGX conda environment
+- `scripts/check_system.py`: save GPU and package information to `artifacts/system_report.json`
+- `scripts/train_dgx.sh`: launch single-node or multi-node `torchrun`
+- `scripts/slurm_train.sh`: submit through Slurm
+- `scripts/run_ablation_suite.py`: launch ablations across seeds
+- `scripts/verify_repo.py`: lightweight structural verification
 
-```bash
-python3 scripts/verify_repo.py
-```
+## Recommended First Run
 
-## Recommended Remote Workflow
-
-1. Copy the repo to the server and place datasets under `data/`.
-2. Run `bash scripts/setup_dgx.sh wbsnet`.
-3. Run `python3 scripts/check_system.py` and inspect `artifacts/system_report.json`.
-4. Start with one seed on one dataset.
-5. Move to multi-seed ablations only after the first run completes cleanly.
+1. Upload repo and `Kvasir-SEG`
+2. Run `bash scripts/setup_dgx.sh wbsnet`
+3. Run `python3 scripts/check_system.py`
+4. Run the 1-epoch smoke test
+5. Run the full `Kvasir-SEG` experiment
+6. Add the remaining datasets after the first full run is stable
