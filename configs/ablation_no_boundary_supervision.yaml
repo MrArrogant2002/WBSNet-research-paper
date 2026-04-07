@@ -1,0 +1,8 @@
+base_config: configs/kvasir_wbsnet.yaml
+
+experiment:
+  name: kvasir_a5_no_boundary_supervision
+  tags: ["ablation", "A5", "no-boundary-supervision"]
+
+model:
+  boundary_supervision: false

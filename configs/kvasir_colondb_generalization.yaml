@@ -1,0 +1,13 @@
+base_config: configs/kvasir_wbsnet.yaml
+
+experiment:
+  name: kvasir_to_colondb_generalization
+  tags: ["kvasir", "colondb", "generalization"]
+
+evaluation:
+  datasets:
+    - name: CVC-ColonDB
+      root: data/CVC-ColonDB
+      image_dir: images
+      mask_dir: masks
+      split: test

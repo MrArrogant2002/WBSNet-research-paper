@@ -1,0 +1,79 @@
+experiment:
+  name: wbsnet
+  run_name: null
+  output_root: outputs
+  seed: 3407
+  tags: ["wbsnet", "medical-segmentation"]
+
+dataset:
+  name: generic
+  root: data/Kvasir-SEG
+  image_dir: images
+  mask_dir: masks
+  image_extensions: [".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"]
+  mask_extensions: [".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"]
+  image_size: [352, 352]
+  split_strategy: ratio
+  split_ratios:
+    train: 0.80
+    val: 0.10
+    test: 0.10
+  split_seed: 3407
+  num_workers: 8
+  pin_memory: true
+  persistent_workers: true
+  normalize_mean: [0.485, 0.456, 0.406]
+  normalize_std: [0.229, 0.224, 0.225]
+  augment:
+    horizontal_flip: true
+    vertical_flip: true
+    rotate90: true
+    color_jitter: true
+
+model:
+  in_channels: 3
+  num_classes: 1
+  decoder_channels: [256, 128, 64, 32]
+  reduction_ratio: 16
+  use_wavelet: true
+  use_lfsa: true
+  use_hfba: true
+  boundary_supervision: true
+  wavelet_type: haar
+  encoder_pretrained_checkpoint: null
+
+train:
+  epochs: 200
+  batch_size: 16
+  grad_accum_steps: 1
+  amp: true
+  compile: false
+  encoder_lr: 0.0001
+  decoder_lr: 0.001
+  weight_decay: 0.0001
+  boundary_loss_weight: 0.5
+  clip_grad_norm: 1.0
+  monitor: dice
+  monitor_mode: max
+  save_every: 10
+
+evaluation:
+  threshold: 0.5
+  compute_hd95: true
+  save_predictions: true
+  max_visualizations: 24
+  datasets: []
+
+runtime:
+  deterministic: false
+  cudnn_benchmark: true
+  device: auto
+  distributed:
+    backend: nccl
+    sync_batchnorm: false
+  wandb:
+    enabled: true
+    project: WBSNet
+    entity: null
+    mode: online
+    log_images_every: 1

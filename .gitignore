@@ -1,0 +1,39 @@
+# Local env and editor state
+.env
+.venv/
+.claude/
+.codex
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.ipynb_checkpoints/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Experiment outputs at repo root only
+/outputs/
+/artifacts/
+/data/
+/raw_checkpoints/
+/wandb/
+/checkpoints/
+
+# Model and run artifacts
+*.pt
+*.pth
+*.ckpt
+*.log
+slurm_*.out

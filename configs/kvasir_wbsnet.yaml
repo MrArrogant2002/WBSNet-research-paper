@@ -1,0 +1,13 @@
+base_config: configs/default.yaml
+
+experiment:
+  name: kvasir_wbsnet
+  tags: ["kvasir", "wbsnet", "full-model"]
+
+dataset:
+  name: Kvasir-SEG
+  root: data/Kvasir-SEG
+
+train:
+  epochs: 200
+  batch_size: 16

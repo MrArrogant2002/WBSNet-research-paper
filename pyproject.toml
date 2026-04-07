@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wbsnet"
+version = "0.1.0"
+description = "DGX-ready WBSNet research codebase for medical image segmentation."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "torch>=2.2.0",
+  "numpy>=1.26.0",
+  "Pillow>=10.0.0",
+  "PyYAML>=6.0.0",
+  "tqdm>=4.66.0",
+  "wandb>=0.17.0",
+  "pandas>=2.2.0",
+  "matplotlib>=3.8.0",
+  "pywavelets>=1.6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["wbsnet*"]

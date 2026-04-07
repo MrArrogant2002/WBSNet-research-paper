@@ -1,0 +1,11 @@
+base_config: configs/kvasir_wbsnet.yaml
+
+experiment:
+  name: kvasir_a4_hfba_only
+  tags: ["ablation", "A4", "hfba-only"]
+
+model:
+  use_wavelet: true
+  use_lfsa: false
+  use_hfba: true
+  boundary_supervision: true

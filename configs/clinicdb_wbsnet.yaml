@@ -1,0 +1,13 @@
+base_config: configs/default.yaml
+
+experiment:
+  name: clinicdb_wbsnet
+  tags: ["cvc-clinicdb", "wbsnet", "full-model"]
+
+dataset:
+  name: CVC-ClinicDB
+  root: data/CVC-ClinicDB
+
+train:
+  epochs: 200
+  batch_size: 16

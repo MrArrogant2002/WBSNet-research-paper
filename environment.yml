@@ -1,0 +1,19 @@
+name: wbsnet
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch>=2.2
+  - pytorch-cuda=12.1
+  - numpy>=1.26
+  - pillow>=10
+  - pyyaml>=6
+  - tqdm>=4.66
+  - pandas>=2.2
+  - matplotlib>=3.8
+  - pip
+  - pip:
+      - wandb>=0.17
+      - pywavelets>=1.6

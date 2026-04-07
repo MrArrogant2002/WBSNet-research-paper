@@ -1,0 +1,13 @@
+base_config: configs/default.yaml
+
+experiment:
+  name: isic2018_wbsnet
+  tags: ["isic2018", "wbsnet", "full-model"]
+
+dataset:
+  name: ISIC2018
+  root: data/ISIC2018
+
+train:
+  epochs: 100
+  batch_size: 16

@@ -1,0 +1,11 @@
+base_config: configs/kvasir_wbsnet.yaml
+
+experiment:
+  name: kvasir_a1_identity_unet
+  tags: ["ablation", "A1", "identity-skip"]
+
+model:
+  use_wavelet: false
+  use_lfsa: false
+  use_hfba: false
+  boundary_supervision: false
