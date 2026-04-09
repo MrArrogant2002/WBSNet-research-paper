@@ -1,0 +1,13 @@
+base_config: configs/kvasir_unet_baseline.yaml
+
+experiment:
+  name: kvasir_to_colondb_generalization_baseline
+  tags: ["kvasir", "colondb", "generalization", "baseline"]
+
+evaluation:
+  datasets:
+    - name: CVC-ColonDB
+      root: data/CVC-ColonDB
+      image_dir: images
+      mask_dir: masks
+      split: all

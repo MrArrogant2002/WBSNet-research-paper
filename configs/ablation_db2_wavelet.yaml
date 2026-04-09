@@ -1,0 +1,12 @@
+base_config: configs/kvasir_wbsnet.yaml
+
+experiment:
+  name: kvasir_a7_db2_wavelet
+  tags: ["ablation", "A7", "db2-wavelet"]
+
+model:
+  use_wavelet: true
+  use_lfsa: true
+  use_hfba: true
+  boundary_supervision: true
+  wavelet_type: db2

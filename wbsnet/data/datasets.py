@@ -48,8 +48,37 @@ def discover_samples(dataset_config: dict[str, Any]) -> list[SampleRecord]:
     return [SampleRecord(image_map[key], mask_map[key], key) for key in shared_keys]
 
 
+def _resolve_split_file(dataset_config: dict[str, Any], split: str) -> Path:
+    split_files = dataset_config.get("split_files", {})
+    if split not in split_files:
+        raise ValueError(f"Missing split file for '{split}' in dataset.split_files")
+    split_file = Path(split_files[split])
+    if split_file.is_absolute():
+        return split_file
+    return Path(dataset_config["root"]) / split_file
+
+
+def _split_from_file(samples: list[SampleRecord], dataset_config: dict[str, Any], split: str) -> list[SampleRecord]:
+    sample_map = {sample.sample_id: sample for sample in samples}
+    split_path = _resolve_split_file(dataset_config, split)
+    if not split_path.exists():
+        raise FileNotFoundError(f"Split file not found: {split_path}")
+
+    selected_ids = [line.strip() for line in split_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    missing = [sample_id for sample_id in selected_ids if sample_id not in sample_map]
+    if missing:
+        preview = ", ".join(missing[:5])
+        raise RuntimeError(f"Split file {split_path} references unknown sample ids: {preview}")
+    return [sample_map[sample_id] for sample_id in selected_ids]
+
+
 def split_samples(samples: list[SampleRecord], dataset_config: dict[str, Any], split: str) -> list[SampleRecord]:
+    if split == "all":
+        return list(samples)
+
     strategy = dataset_config.get("split_strategy", "ratio")
+    if strategy == "predefined":
+        return _split_from_file(samples, dataset_config, split)
     if strategy != "ratio":
         raise ValueError(f"Unsupported split strategy: {strategy}")
 

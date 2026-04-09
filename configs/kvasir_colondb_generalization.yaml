@@ -10,4 +10,4 @@ evaluation:
       root: data/CVC-ColonDB
       image_dir: images
       mask_dir: masks
-      split: test
+      split: all

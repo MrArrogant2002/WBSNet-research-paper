@@ -25,6 +25,9 @@ dataset:
   normalize_mean: [0.485, 0.456, 0.406]
   normalize_std: [0.229, 0.224, 0.225]
   augment:
+    random_resized_crop: true
+    random_resized_crop_scale: [0.8, 1.0]
+    random_resized_crop_ratio: [0.9, 1.1]
     horizontal_flip: true
     vertical_flip: true
     rotate90: true
@@ -40,6 +43,7 @@ model:
   use_hfba: true
   boundary_supervision: true
   wavelet_type: haar
+  encoder_pretrained: imagenet
   encoder_pretrained_checkpoint: null
 
 train:

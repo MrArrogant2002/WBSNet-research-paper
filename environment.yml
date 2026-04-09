@@ -7,13 +7,19 @@ dependencies:
   - python=3.10
   - pytorch>=2.2
   - pytorch-cuda=12.1
+  - torchvision>=0.17
   - numpy>=1.26
   - pillow>=10
   - pyyaml>=6
   - tqdm>=4.66
   - pandas>=2.2
   - matplotlib>=3.8
+  - scipy>=1.10
   - pip
   - pip:
       - wandb>=0.17
       - pywavelets>=1.6
+      - albumentations>=1.4
+      - opencv-python>=4.8
+      - segmentation-models-pytorch>=0.3.4
+      - pytorch-wavelets>=1.3

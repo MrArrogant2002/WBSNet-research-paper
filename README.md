@@ -6,7 +6,7 @@ Wavelet Boundary Skip Network for medical image segmentation.
 The repo includes:
 
 - A pure PyTorch implementation of `WBSNet` with four WBS skip modules.
-- Baseline and ablation support through YAML config flags.
+- Baseline and ablation support through YAML configs, including `A1-A7`.
 - Training, evaluation, prediction export, and paper-statistics aggregation.
 - Single-GPU and multi-GPU execution through `torchrun`.
 - Weights & Biases logging through `.env`.
@@ -23,6 +23,16 @@ Each run writes artifacts that are useful for paper writing:
 - `predictions/`: masks and overlays for qualitative figures
 - `aggregated_results.*`: merged outputs across seeds and variants
 - `artifacts/system_report.json`: DGX hardware and package report
+
+## Hardware Requirements
+
+The short version:
+
+- Minimum: `1 x 12 GB GPU`, `16 GB RAM`, `100 GB SSD`
+- Recommended: `1 x 24 GB GPU`, `32 GB RAM`, `500 GB NVMe SSD`
+- Ideal for the full paper plan: `A100 40/80 GB` or multi-GPU
+
+Detailed planning notes are in [docs/HARDWARE_REQUIREMENTS.md](/home/eswarbalu/Desktop/WBSNET-paper/docs/HARDWARE_REQUIREMENTS.md).
 
 ## Datasets To Download
 
@@ -252,6 +262,8 @@ Useful knobs:
 - `dataset.root`
 - `dataset.image_dir`
 - `dataset.mask_dir`
+- `dataset.split_strategy`
+- `dataset.split_files`
 - `train.epochs`
 - `train.batch_size`
 - `runtime.wandb.mode`
@@ -266,6 +278,40 @@ You can override config values from the command line:
 ```bash
 python train.py --config configs/kvasir_wbsnet.yaml --override train.epochs=5 train.batch_size=4
 ```
+
+Useful split modes:
+
+- `dataset.split_strategy=ratio`: random train/val/test split
+- `dataset.split_strategy=predefined`: read exact sample ids from `dataset.split_files`
+- `--split all`: evaluate every sample in a dataset, which is what you want for `CVC-ColonDB`
+
+Example predefined split override:
+
+```bash
+python train.py --config configs/kvasir_wbsnet.yaml --override \
+  dataset.split_strategy=predefined \
+  dataset.split_files.train=splits/kvasir/train.txt \
+  dataset.split_files.val=splits/kvasir/val.txt \
+  dataset.split_files.test=splits/kvasir/test.txt
+```
+
+Important configs that match the paper plan:
+
+- `configs/kvasir_wbsnet.yaml`: full WBSNet on Kvasir
+- `configs/clinicdb_wbsnet.yaml`: full WBSNet on CVC-ClinicDB
+- `configs/isic2018_wbsnet.yaml`: full WBSNet on ISIC 2018
+- `configs/kvasir_unet_baseline.yaml`: vanilla ResNet-34 U-Net baseline on Kvasir
+- `configs/clinicdb_unet_baseline.yaml`: vanilla ResNet-34 U-Net baseline on CVC-ClinicDB
+- `configs/isic2018_unet_baseline.yaml`: vanilla ResNet-34 U-Net baseline on ISIC 2018
+- `configs/ablation_identity_unet.yaml`: A1
+- `configs/kvasir_wbsnet.yaml`: A2
+- `configs/ablation_lfsa_only.yaml`: A3
+- `configs/ablation_hfba_only.yaml`: A4
+- `configs/ablation_no_boundary_supervision.yaml`: A5
+- `configs/ablation_no_wavelet_attention.yaml`: A6
+- `configs/ablation_db2_wavelet.yaml`: A7
+- `configs/kvasir_colondb_generalization.yaml`: Kvasir-trained checkpoint evaluated on the full ColonDB set
+- `configs/kvasir_colondb_generalization_baseline.yaml`: baseline U-Net checkpoint evaluated on the full ColonDB set
 
 ## W&B Note
 
@@ -282,6 +328,7 @@ For smoke tests, use offline mode:
 
 ```text
 configs/
+docs/
 scripts/
 wbsnet/
   data/
@@ -289,6 +336,7 @@ wbsnet/
   utils/
 train.py
 evaluate.py
+test.py
 predict.py
 aggregate_results.py
 requirements.txt
@@ -302,7 +350,7 @@ environment.yml
 - `scripts/train_dgx.sh`: launch single-node or multi-node `torchrun`
 - `scripts/slurm_train.sh`: submit through Slurm
 - `scripts/run_ablation_suite.py`: launch ablations across seeds
-- `scripts/verify_repo.py`: lightweight structural verification
+- `scripts/verify_repo.py`: structural verification plus optional runtime smoke checks when `torch` is installed
 
 ## Recommended First Run
 

@@ -1,0 +1,11 @@
+base_config: configs/isic2018_wbsnet.yaml
+
+experiment:
+  name: isic2018_unet_baseline
+  tags: ["baseline", "unet", "resnet34"]
+
+model:
+  use_wavelet: false
+  use_lfsa: false
+  use_hfba: false
+  boundary_supervision: false

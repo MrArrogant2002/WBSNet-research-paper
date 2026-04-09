@@ -34,7 +34,22 @@ def _disk_usage(path: str) -> dict[str, float]:
 
 def _python_packages() -> dict[str, str]:
     packages: dict[str, str] = {}
-    for module_name in ["torch", "numpy", "pandas", "PIL", "yaml", "wandb", "pywt", "matplotlib"]:
+    for module_name in [
+        "torch",
+        "torchvision",
+        "numpy",
+        "pandas",
+        "PIL",
+        "yaml",
+        "wandb",
+        "pywt",
+        "pytorch_wavelets",
+        "albumentations",
+        "cv2",
+        "scipy",
+        "segmentation_models_pytorch",
+        "matplotlib",
+    ]:
         try:
             module = __import__(module_name)
             packages[module_name] = getattr(module, "__version__", "installed")

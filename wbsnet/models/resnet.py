@@ -77,3 +77,21 @@ class ResNetEncoder(nn.Module):
             elif key in self.state_dict():
                 cleaned[key] = value
         self.load_state_dict(cleaned, strict=False)
+
+    def load_imagenet_pretrained(self) -> None:
+        try:
+            from torchvision.models import ResNet34_Weights, resnet34
+
+            state = resnet34(weights=ResNet34_Weights.IMAGENET1K_V1).state_dict()
+        except Exception as exc:
+            raise RuntimeError(
+                "Loading ImageNet pretrained ResNet-34 requires torchvision and either internet access or cached weights."
+            ) from exc
+
+        current = self.state_dict()
+        compatible = {
+            key: value
+            for key, value in state.items()
+            if key in current and tuple(value.shape) == tuple(current[key].shape)
+        }
+        self.load_state_dict(compatible, strict=False)

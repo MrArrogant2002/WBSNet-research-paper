@@ -5,6 +5,8 @@ from typing import Any
 import torch
 import torch.nn.functional as F
 
+from .utils.boundary_gt import boundary_targets_from_masks
+
 
 def dice_loss_from_logits(logits: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
     probs = torch.sigmoid(logits)
@@ -19,27 +21,6 @@ def segmentation_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tens
     bce = F.binary_cross_entropy_with_logits(logits, targets)
     dice = dice_loss_from_logits(logits, targets)
     return bce + dice
-
-
-def boundary_targets_from_masks(masks: torch.Tensor) -> torch.Tensor:
-    with torch.no_grad():
-        targets = masks.detach().float()
-        sobel_x = torch.tensor(
-            [[[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]]],
-            device=targets.device,
-            dtype=targets.dtype,
-        ).unsqueeze(0)
-        sobel_y = torch.tensor(
-            [[[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]]],
-            device=targets.device,
-            dtype=targets.dtype,
-        ).unsqueeze(0)
-        grad_x = F.conv2d(targets, sobel_x, padding=1)
-        grad_y = F.conv2d(targets, sobel_y, padding=1)
-        magnitude = torch.sqrt(grad_x.square() + grad_y.square() + 1e-8)
-        edges = (magnitude > 0).float()
-        edges = F.max_pool2d(edges, kernel_size=3, stride=1, padding=1)
-    return edges
 
 
 def boundary_loss(boundary_logits: list[torch.Tensor], targets: torch.Tensor) -> torch.Tensor:

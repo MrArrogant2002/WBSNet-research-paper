@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Save qualitative predictions from a WBSNet checkpoint.")
     parser.add_argument("--config", required=True, help="Path to a YAML config.")
     parser.add_argument("--checkpoint", required=True, help="Checkpoint path.")
-    parser.add_argument("--split", default="test", choices=["train", "val", "test"])
+    parser.add_argument("--split", default="test", choices=["train", "val", "test", "all"])
     parser.add_argument("--output-dir", default=None, help="Optional prediction output directory.")
     parser.add_argument("--override", nargs="*", default=[], help="Config overrides in key=value form.")
     return parser.parse_args()

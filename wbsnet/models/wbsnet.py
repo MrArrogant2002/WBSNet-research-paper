@@ -18,6 +18,9 @@ class WBSNet(nn.Module):
         reduction_ratio = int(model_cfg.get("reduction_ratio", 16))
 
         self.encoder = ResNetEncoder(in_channels=int(model_cfg.get("in_channels", 3)))
+        pretrained_mode = model_cfg.get("encoder_pretrained", False)
+        if pretrained_mode in {True, "imagenet", "ImageNet", "IMAGENET"}:
+            self.encoder.load_imagenet_pretrained()
         if model_cfg.get("encoder_pretrained_checkpoint"):
             self.encoder.load_checkpoint(model_cfg["encoder_pretrained_checkpoint"])
 
@@ -91,6 +94,14 @@ def build_model(config: dict[str, Any]) -> WBSNet:
 
 def variant_name_from_config(config: dict[str, Any]) -> str:
     model_cfg = config["model"]
+    if (
+        model_cfg.get("use_wavelet", True)
+        and model_cfg.get("use_lfsa", True)
+        and model_cfg.get("use_hfba", True)
+        and model_cfg.get("boundary_supervision", True)
+        and str(model_cfg.get("wavelet_type", "haar")).lower() in {"db2", "daubechies2", "daubechies-2"}
+    ):
+        return "A7_db2_wavelet"
     if not model_cfg.get("use_wavelet", True) and not model_cfg.get("use_lfsa", True) and not model_cfg.get("use_hfba", True):
         return "A1_identity_unet"
     if model_cfg.get("use_wavelet", True) and model_cfg.get("use_lfsa", True) and model_cfg.get("use_hfba", True) and model_cfg.get("boundary_supervision", True):
