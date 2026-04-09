@@ -9,6 +9,7 @@ from wbsnet.engine import evaluate_and_save_predictions, load_checkpoint, select
 from wbsnet.models import build_model
 from wbsnet.utils import ensure_dir, load_env_file
 from wbsnet.utils.distributed import cleanup_distributed, init_distributed
+from wbsnet.utils.logger import ExperimentLogger
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,6 +39,15 @@ def main() -> None:
     )
     run_dir = Path(args.output_dir) if args.output_dir else Path(args.checkpoint).resolve().parents[1] / "predictions"
     ensure_dir(run_dir)
+    logger = None
+    if bool(config["runtime"]["wandb"].get("enabled", True) and config["runtime"]["wandb"].get("upload_eval_examples", True)):
+        logger = ExperimentLogger(
+            output_dir=run_dir,
+            config=config,
+            enabled=True,
+            rank=distributed_state.rank,
+            open_csv=False,
+        )
 
     try:
         metrics = evaluate_and_save_predictions(
@@ -47,9 +57,14 @@ def main() -> None:
             config=config,
             distributed_state=distributed_state,
             save_dir=run_dir,
+            logger=logger,
+            step=0,
+            split_name=f"predict/{args.split}",
         )
         print(metrics)
     finally:
+        if logger is not None:
+            logger.finish()
         cleanup_distributed()
 
 

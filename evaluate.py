@@ -11,6 +11,7 @@ from wbsnet.engine import evaluate_and_save_predictions, load_checkpoint, persis
 from wbsnet.models import build_model, variant_name_from_config
 from wbsnet.utils import ensure_dir, load_env_file
 from wbsnet.utils.distributed import cleanup_distributed, init_distributed, is_main_process
+from wbsnet.utils.logger import ExperimentLogger
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,6 +44,15 @@ def main() -> None:
 
     run_dir = Path(args.checkpoint).resolve().parents[1]
     evaluation_dir = ensure_dir(run_dir / "evaluation")
+    logger = None
+    if bool(config["runtime"]["wandb"].get("enabled", True) and config["runtime"]["wandb"].get("upload_eval_examples", True)):
+        logger = ExperimentLogger(
+            output_dir=evaluation_dir,
+            config=config,
+            enabled=True,
+            rank=distributed_state.rank,
+            open_csv=False,
+        )
 
     try:
         for dataset_cfg in _dataset_variants(config):
@@ -62,6 +72,9 @@ def main() -> None:
                 config={**config, "dataset": merged_dataset},
                 distributed_state=distributed_state,
                 save_dir=save_dir,
+                logger=logger,
+                step=0,
+                split_name=f"evaluation/{merged_dataset['name']}",
             )
             if is_main_process(distributed_state):
                 payload = {
@@ -69,9 +82,14 @@ def main() -> None:
                     "dataset_name": merged_dataset["name"],
                     "variant_name": variant_name_from_config(config),
                     "checkpoint": str(Path(args.checkpoint).resolve()),
+                    "experiment_name": config["experiment"]["name"],
+                    "run_name": config["experiment"]["run_name"],
+                    "seed": config["experiment"]["seed"],
                 }
                 persist_metrics(evaluation_dir / f"{merged_dataset['name']}.json", payload)
     finally:
+        if logger is not None:
+            logger.finish()
         cleanup_distributed()
 
 

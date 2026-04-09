@@ -40,9 +40,12 @@ def _collect_records(root: Path) -> list[dict[str, Any]]:
         record = {
             "source": str(path),
             "record_type": "evaluation",
+            "experiment_name": payload.get("experiment_name"),
+            "run_name": payload.get("run_name"),
             "dataset_name": payload.get("dataset_name"),
             "variant_name": payload.get("variant_name"),
             "checkpoint": payload.get("checkpoint"),
+            "seed": payload.get("seed"),
         }
         for key, value in metrics.items():
             record[key] = value

@@ -65,6 +65,9 @@ evaluation:
   threshold: 0.5
   compute_hd95: true
   save_predictions: true
+  save_paper_panels: true
+  save_contact_sheet: true
+  contact_sheet_columns: 2
   max_visualizations: 24
   datasets: []
 
@@ -81,3 +84,6 @@ runtime:
     entity: null
     mode: online
     log_images_every: 1
+    max_images: 4
+    upload_val_examples: true
+    upload_eval_examples: true

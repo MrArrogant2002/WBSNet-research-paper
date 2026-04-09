@@ -98,6 +98,8 @@ def main() -> None:
                 distributed_state=distributed_state,
                 training=True,
                 epoch=epoch,
+                logger=logger,
+                split_name="train",
             )
             val_metrics = run_epoch(
                 model=model,
@@ -109,6 +111,8 @@ def main() -> None:
                 distributed_state=distributed_state,
                 training=False,
                 epoch=epoch,
+                logger=logger,
+                split_name="val",
             )
             scheduler.step()
 

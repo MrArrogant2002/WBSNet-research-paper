@@ -20,9 +20,22 @@ Each run writes artifacts that are useful for paper writing:
 - `best_metrics.json`: best validation snapshot
 - `run_summary.json`: compact run metadata for aggregation
 - `evaluation/<dataset>.json`: final evaluation metrics
-- `predictions/`: masks and overlays for qualitative figures
+- `predictions/`: masks, overlays, paper panels, and contact sheets for qualitative figures
 - `aggregated_results.*`: merged outputs across seeds and variants
 - `artifacts/system_report.json`: DGX hardware and package report
+
+Logged metrics include:
+
+- overall `loss`
+- `segmentation_loss`
+- `boundary_loss`
+- `dice`
+- `iou`
+- `precision`
+- `recall`
+- `accuracy`
+- `specificity`
+- `hd95`
 
 ## Hardware Requirements
 
@@ -229,10 +242,28 @@ Export qualitative predictions:
 python predict.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/.../checkpoints/best.pt --split test
 ```
 
+Build a paper contact sheet from saved panels:
+
+```bash
+python scripts/make_paper_figures.py --input-dir outputs/.../predictions --limit 8 --columns 2
+```
+
 Aggregate results:
 
 ```bash
 python aggregate_results.py --root outputs --output outputs/aggregated
+```
+
+Run significance tests:
+
+```bash
+python scripts/significance_tests.py --root outputs --output outputs/significance --record-type evaluation --reference A1_identity_unet
+```
+
+Estimate parameters and FLOPs:
+
+```bash
+python scripts/model_complexity.py --output outputs/model_complexity
 ```
 
 Run the ablation suite:
@@ -272,6 +303,10 @@ Useful knobs:
 - `model.use_hfba`
 - `model.boundary_supervision`
 - `model.wavelet_type`
+- `evaluation.save_paper_panels`
+- `evaluation.save_contact_sheet`
+- `runtime.wandb.log_images_every`
+- `runtime.wandb.max_images`
 
 You can override config values from the command line:
 
@@ -350,6 +385,9 @@ environment.yml
 - `scripts/train_dgx.sh`: launch single-node or multi-node `torchrun`
 - `scripts/slurm_train.sh`: submit through Slurm
 - `scripts/run_ablation_suite.py`: launch ablations across seeds
+- `scripts/make_paper_figures.py`: build paper contact sheets from saved qualitative panels
+- `scripts/significance_tests.py`: run paired/Welch t-tests across variants and datasets
+- `scripts/model_complexity.py`: estimate parameter counts and FLOPs for configs
 - `scripts/verify_repo.py`: structural verification plus optional runtime smoke checks when `torch` is installed
 
 ## Recommended First Run

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
 
 import torch
@@ -11,7 +12,10 @@ from .losses import total_loss
 from .metrics import BinarySegmentationMeter
 from .utils.distributed import DistributedState, is_main_process
 from .utils.io import ensure_dir, save_json
-from .visualization import save_prediction_triplet
+from .visualization import create_prediction_visuals, save_contact_sheet, save_prediction_triplet
+
+if TYPE_CHECKING:
+    from .utils.logger import ExperimentLogger
 
 
 def select_device(config: dict[str, Any], distributed_state: DistributedState) -> torch.device:
@@ -97,6 +101,12 @@ def _progress_bar(loader: Any, desc: str, enabled: bool) -> Any:
     return tqdm(loader, desc=desc, leave=False, disable=not enabled)
 
 
+def _mean_scalar_dict(totals: dict[str, float], count: int) -> dict[str, float]:
+    if count <= 0:
+        return {key: 0.0 for key in totals}
+    return {key: float(value / count) for key, value in totals.items()}
+
+
 def run_epoch(
     *,
     model: torch.nn.Module,
@@ -108,15 +118,31 @@ def run_epoch(
     distributed_state: DistributedState,
     training: bool,
     epoch: int,
+    logger: "ExperimentLogger | None" = None,
+    split_name: str | None = None,
 ) -> dict[str, float]:
     amp_enabled = bool(config["train"].get("amp", True) and device.type == "cuda")
     grad_accum_steps = int(config["train"].get("grad_accum_steps", 1))
     boundary_weight = float(config["train"].get("boundary_loss_weight", 0.5))
     clip_grad_norm = float(config["train"].get("clip_grad_norm", 0.0))
+    threshold = float(config["evaluation"].get("threshold", 0.5))
     meter = BinarySegmentationMeter(
-        threshold=float(config["evaluation"].get("threshold", 0.5)),
+        threshold=threshold,
         compute_hd95=bool(config["evaluation"].get("compute_hd95", True)),
     )
+    loss_totals = {"segmentation_loss": 0.0, "boundary_loss": 0.0, "total_loss": 0.0}
+    loss_steps = 0
+    captured_images: list[dict[str, Any]] = []
+    should_log_images = (
+        (not training)
+        and logger is not None
+        and is_main_process(distributed_state)
+        and bool(config.get("runtime", {}).get("wandb", {}).get("upload_val_examples", True))
+        and ((epoch + 1) % int(config.get("runtime", {}).get("wandb", {}).get("log_images_every", 1)) == 0)
+    )
+    max_wandb_images = int(config.get("runtime", {}).get("wandb", {}).get("max_images", 4))
+    mean = config["dataset"].get("normalize_mean", [0.485, 0.456, 0.406])
+    std = config["dataset"].get("normalize_std", [0.229, 0.224, 0.225])
 
     model.train(training)
     if training and hasattr(loader, "sampler") and hasattr(loader.sampler, "set_epoch"):
@@ -133,7 +159,7 @@ def run_epoch(
         with torch.set_grad_enabled(training):
             with torch.autocast(device_type=device.type, enabled=amp_enabled):
                 output = model(images)
-                loss, _ = total_loss(output, masks, boundary_weight)
+                loss, loss_parts = total_loss(output, masks, boundary_weight)
                 scaled_loss = loss / grad_accum_steps
 
             if training and optimizer is not None:
@@ -147,6 +173,28 @@ def run_epoch(
                     optimizer.zero_grad(set_to_none=True)
 
         meter.update(output["logits"].detach(), masks.detach(), float(loss.detach().item()))
+        for key in loss_totals:
+            loss_totals[key] += float(loss_parts[key])
+        loss_steps += 1
+
+        if should_log_images and len(captured_images) < max_wandb_images:
+            probs = (torch.sigmoid(output["logits"].detach()) >= threshold).float()
+            for idx in range(images.shape[0]):
+                if len(captured_images) >= max_wandb_images:
+                    break
+                visuals = create_prediction_visuals(
+                    image=batch["image"][idx],
+                    target_mask=batch["mask"][idx],
+                    pred_mask=probs[idx].cpu(),
+                    mean=mean,
+                    std=std,
+                )
+                captured_images.append(
+                    {
+                        "image": visuals["paper_panel"],
+                        "caption": str(batch["sample_id"][idx]),
+                    }
+                )
 
     if training and optimizer is not None and len(loader) % grad_accum_steps != 0:
         if clip_grad_norm > 0:
@@ -156,7 +204,11 @@ def run_epoch(
         scaler.update()
         optimizer.zero_grad(set_to_none=True)
 
-    return meter.compute(distributed_state)
+    metrics = meter.compute(distributed_state)
+    metrics.update(_mean_scalar_dict(loss_totals, loss_steps))
+    if should_log_images and captured_images:
+        logger.log_panel_images(f"{split_name or 'val'}/paper_panels", captured_images, step=epoch)
+    return metrics
 
 
 @torch.no_grad()
@@ -168,31 +220,47 @@ def evaluate_and_save_predictions(
     config: dict[str, Any],
     distributed_state: DistributedState,
     save_dir: str | Path | None = None,
+    logger: "ExperimentLogger | None" = None,
+    step: int = 0,
+    split_name: str = "evaluation",
 ) -> dict[str, float]:
     model.eval()
+    threshold = float(config["evaluation"].get("threshold", 0.5))
     meter = BinarySegmentationMeter(
-        threshold=float(config["evaluation"].get("threshold", 0.5)),
+        threshold=threshold,
         compute_hd95=bool(config["evaluation"].get("compute_hd95", True)),
     )
+    loss_totals = {"segmentation_loss": 0.0, "boundary_loss": 0.0, "total_loss": 0.0}
+    loss_steps = 0
 
     saved = 0
     max_visualizations = int(config["evaluation"].get("max_visualizations", 24))
+    save_paper_panels = bool(config["evaluation"].get("save_paper_panels", True))
+    save_contact_sheet_enabled = bool(config["evaluation"].get("save_contact_sheet", True))
+    contact_sheet_columns = int(config["evaluation"].get("contact_sheet_columns", 2))
     mean = config["dataset"].get("normalize_mean", [0.485, 0.456, 0.406])
     std = config["dataset"].get("normalize_std", [0.229, 0.224, 0.225])
+    logged_images: list[dict[str, Any]] = []
+    max_wandb_images = int(config.get("runtime", {}).get("wandb", {}).get("max_images", 4))
+    upload_eval_examples = bool(config.get("runtime", {}).get("wandb", {}).get("upload_eval_examples", True))
+    paper_panel_paths: list[str] = []
 
     for batch in _progress_bar(loader, "predict", is_main_process(distributed_state)):
         images = batch["image"].to(device, non_blocking=True)
         masks = batch["mask"].to(device, non_blocking=True)
         output = model(images)
-        loss, _ = total_loss(output, masks, float(config["train"].get("boundary_loss_weight", 0.5)))
+        loss, loss_parts = total_loss(output, masks, float(config["train"].get("boundary_loss_weight", 0.5)))
         meter.update(output["logits"], masks, float(loss.item()))
+        for key in loss_totals:
+            loss_totals[key] += float(loss_parts[key])
+        loss_steps += 1
 
         if save_dir is not None and is_main_process(distributed_state):
-            probs = (torch.sigmoid(output["logits"]) >= float(config["evaluation"].get("threshold", 0.5))).float()
+            probs = (torch.sigmoid(output["logits"]) >= threshold).float()
             for idx in range(images.shape[0]):
                 if saved >= max_visualizations:
                     break
-                save_prediction_triplet(
+                saved_paths = save_prediction_triplet(
                     save_dir=save_dir,
                     sample_id=batch["sample_id"][idx],
                     image=batch["image"][idx],
@@ -201,9 +269,36 @@ def evaluate_and_save_predictions(
                     mean=mean,
                     std=std,
                 )
+                if save_paper_panels:
+                    paper_panel_paths.append(saved_paths["paper_panel"])
+                if logger is not None and upload_eval_examples and len(logged_images) < max_wandb_images:
+                    visuals = create_prediction_visuals(
+                        image=batch["image"][idx],
+                        target_mask=batch["mask"][idx],
+                        pred_mask=probs[idx].cpu(),
+                        mean=mean,
+                        std=std,
+                    )
+                    logged_images.append(
+                        {
+                            "image": visuals["paper_panel"],
+                            "caption": str(batch["sample_id"][idx]),
+                        }
+                    )
                 saved += 1
 
-    return meter.compute(distributed_state)
+    if save_dir is not None and is_main_process(distributed_state) and save_contact_sheet_enabled and paper_panel_paths:
+        save_contact_sheet(
+            panel_paths=paper_panel_paths,
+            output_path=Path(save_dir) / "paper_contact_sheet.png",
+            columns=contact_sheet_columns,
+        )
+    if logger is not None and logged_images:
+        logger.log_panel_images(f"{split_name}/paper_panels", logged_images, step=step)
+
+    metrics = meter.compute(distributed_state)
+    metrics.update(_mean_scalar_dict(loss_totals, loss_steps))
+    return metrics
 
 
 def persist_run_summary(
