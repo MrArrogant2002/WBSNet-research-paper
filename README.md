@@ -3,6 +3,10 @@
 WBSNet is a DGX-ready research codebase for the paper idea in this repository:
 Wavelet Boundary Skip Network for medical image segmentation.
 
+The manuscript lives in [`paper/paper.tex`](paper/paper.tex) (IEEE conference
+style). Figure sources are in [`diagrams/`](diagrams/). Build the PDF with
+`cd paper && make`.
+
 The repo includes:
 
 - A pure PyTorch implementation of `WBSNet` with four WBS skip modules.

@@ -1,0 +1,63 @@
+% WBSNet architecture diagram (TikZ). Wrap inside a LaTeX figure in paper.tex
+% by replacing the \includegraphics line, or compile stand-alone with the
+% `standalone` document class.
+\begin{tikzpicture}[
+  >=latex, thick, font=\small,
+  enc/.style ={draw, rounded corners=2pt, fill=blue!10, minimum width=2.2cm, minimum height=0.8cm, align=center},
+  wbs/.style ={draw, rounded corners=2pt, fill=orange!25, minimum width=2.0cm, minimum height=0.8cm, align=center},
+  dec/.style ={draw, rounded corners=2pt, fill=green!15, minimum width=2.4cm, minimum height=0.8cm, align=center},
+  loss/.style={draw, rounded corners=2pt, fill=red!10, minimum width=2.4cm, minimum height=0.8cm, align=center},
+]
+
+% Encoder column
+\node[enc] (stem) {Stem+ReLU\\64, H/2};
+\node[enc, below=0.4 of stem] (l1)   {Layer1\\64, H/4};
+\node[enc, below=0.4 of l1]   (l2)   {Layer2\\128, H/8};
+\node[enc, below=0.4 of l2]   (l3)   {Layer3\\256, H/16};
+\node[enc, below=0.4 of l3]   (l4)   {Layer4\\512, H/32};
+\draw[->] (stem) -- (l1);
+\draw[->] (l1)   -- (l2);
+\draw[->] (l2)   -- (l3);
+\draw[->] (l3)   -- (l4);
+
+% WBS modules column
+\node[wbs, right=2.2 of stem] (w1) {WBS\textsubscript{1}};
+\node[wbs, right=2.2 of l1]   (w2) {WBS\textsubscript{2}};
+\node[wbs, right=2.2 of l2]   (w3) {WBS\textsubscript{3}};
+\node[wbs, right=2.2 of l3]   (w4) {WBS\textsubscript{4}};
+\draw[->] (stem) -- (w1);
+\draw[->] (l1)   -- (w2);
+\draw[->] (l2)   -- (w3);
+\draw[->] (l3)   -- (w4);
+
+% Decoder column
+\node[dec, right=2.2 of w4] (d4) {Dec\textsubscript{4}\\256, H/16};
+\node[dec, above=0.4 of d4] (d3) {Dec\textsubscript{3}\\128, H/8};
+\node[dec, above=0.4 of d3] (d2) {Dec\textsubscript{2}\\64,  H/4};
+\node[dec, above=0.4 of d2] (d1) {Dec\textsubscript{1}\\32,  H/2};
+\node[loss, above=0.4 of d1] (head) {1x1 head\\logits};
+
+\draw[->] (l4.east) -- ++(0.4,0) |- (d4.west);
+\draw[->] (w4) -- (d4);
+\draw[->] (d4) -- (d3);
+\draw[->] (w3) -- (d3);
+\draw[->] (d3) -- (d2);
+\draw[->] (w2) -- (d2);
+\draw[->] (d2) -- (d1);
+\draw[->] (w1) -- (d1);
+\draw[->] (d1) -- (head);
+
+% Boundary supervision
+\node[loss, right=2.0 of d4] (lbnd) {$\mathcal{L}_{\text{bnd}}$ (Sobel)};
+\draw[dashed,->] (w1) .. controls +(2,0) and +(0,2) .. (lbnd);
+\draw[dashed,->] (w2) .. controls +(1.5,0) and +(0,1.5) .. (lbnd);
+\draw[dashed,->] (w3) .. controls +(1,0) and +(0,1) .. (lbnd);
+\draw[dashed,->] (w4) .. controls +(0.5,0) and +(0,0.5) .. (lbnd);
+
+\node[loss, below=0.4 of lbnd] (lseg) {$\mathcal{L}_{\text{seg}}$};
+\draw[->] (head.east) -- ++(0.8,0) |- (lseg.east);
+\node[loss, below=0.4 of lseg] (ltot) {$\mathcal{L}=\mathcal{L}_{\text{seg}}+\lambda\mathcal{L}_{\text{bnd}}$};
+\draw[->] (lseg) -- (ltot);
+\draw[->] (lbnd) -- (ltot);
+
+\end{tikzpicture}

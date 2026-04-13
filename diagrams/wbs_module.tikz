@@ -1,0 +1,47 @@
+% WBS module diagram (TikZ) — sibling of wbsnet_architecture.tikz
+\begin{tikzpicture}[
+  >=latex, thick, font=\small,
+  node distance=0.6cm and 0.8cm,
+  block/.style={draw, rounded corners=2pt, fill=gray!10, minimum height=0.75cm, minimum width=2.4cm, align=center},
+  low/.style  ={draw, rounded corners=2pt, fill=blue!15,  minimum height=0.75cm, minimum width=2.2cm, align=center},
+  high/.style ={draw, rounded corners=2pt, fill=orange!25,minimum height=0.75cm, minimum width=2.2cm, align=center},
+  out/.style  ={draw, rounded corners=2pt, fill=green!20, minimum height=0.75cm, minimum width=2.6cm, align=center},
+]
+\node[block] (f) {Encoder feature $\mathbf{F}$\\$C\times H\times W$};
+\node[block, below=of f] (dwt) {2D Haar DWT};
+\draw[->] (f) -- (dwt);
+
+\node[low, below left=0.6 and 2.0 of dwt] (ll)  {LL};
+\node[high, below=of dwt] (lh) {LH};
+\node[high, right=0.4 of lh] (hl) {HL};
+\node[high, right=0.4 of hl] (hh) {HH};
+
+\draw[->] (dwt) -| (ll);
+\draw[->] (dwt) -- (lh);
+\draw[->] (dwt) -| (hl);
+\draw[->] (dwt) -| (hh);
+
+\node[low, below=of ll] (lfsa) {LFSA\\(SE on LL)};
+\draw[->] (ll) -- (lfsa);
+
+\node[high, below=0.6 of lh] (cat) {Concat (3C)};
+\draw[->] (lh) -- (cat);
+\draw[->] (hl) -- (cat);
+\draw[->] (hh) -- (cat);
+\node[high, below=of cat] (dw) {Depthwise 3$\times$3\\Pointwise 1$\times$1\\(3C $\to$ C)};
+\draw[->] (cat) -- (dw);
+\node[high, below=of dw] (bhead) {1$\times$1 head\\$\mathbf{M}_{\text{bnd}}$};
+\draw[->] (dw) -- (bhead);
+\node[high, right=of dw] (gate) {spatial gate\\$\sigma(\mathbf{M}_{\text{bnd}})\odot$};
+\draw[->] (dw) -- (gate);
+\draw[->] (bhead) -- (gate);
+
+\node[out, below=1.5 of lfsa] (idwt) {2D Haar IDWT};
+\draw[->] (lfsa) -- (idwt);
+\draw[->] (gate) |- (idwt);
+\node[out, below=of idwt] (fp) {Refined skip $\tilde{\mathbf{F}}$\\$C\times H\times W$};
+\draw[->] (idwt) -- (fp);
+
+\node[block, below=0.4 of bhead, fill=red!10] (lbnd) {BCE with Sobel($\mathbf{y}$)};
+\draw[dashed,->] (bhead) -- (lbnd);
+\end{tikzpicture}

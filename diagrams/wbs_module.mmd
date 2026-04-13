@@ -1,0 +1,29 @@
+%%{init: {'theme':'neutral','flowchart':{'curve':'basis','nodeSpacing':40,'rankSpacing':55}}}%%
+flowchart TB
+    F["Encoder feature F<br/>C x H x W"] --> DWT["2D Haar DWT<br/>(stride-2 grouped conv)"]
+    DWT --> LL["LL<br/>C x H/2 x W/2"]
+    DWT --> LH["LH"]
+    DWT --> HL["HL"]
+    DWT --> HH["HH"]
+
+    LL --> LFSA["LFSA<br/>GAP -> FC/r -> ReLU -> FC -> Sigmoid"]
+    LFSA --> LLP["LL'<br/>channel-weighted"]
+
+    LH --> CAT["Concat<br/>3C x H/2 x W/2"]
+    HL --> CAT
+    HH --> CAT
+    CAT --> DW["Depthwise 3x3 Conv<br/>+ BN + ReLU"]
+    DW --> PW["Pointwise 1x1 Conv<br/>3C -> C + BN + ReLU"]
+    PW --> HRED["H_reduced<br/>C x H/2 x W/2"]
+    HRED --> BHEAD["1x1 Conv<br/>C -> 1"]
+    BHEAD --> BLOG["M_bnd<br/>boundary logits"]
+    BLOG --> SIG["sigmoid"]
+    SIG --> GATE["spatial gate"]
+    HRED --> GATE
+    GATE --> HP["H'<br/>reused for LH'/HL'/HH'"]
+
+    LLP --> IDWT["2D Haar IDWT<br/>(stride-2 transposed)"]
+    HP --> IDWT
+    IDWT --> OUT["Refined skip<br/>C x H x W"]
+
+    BLOG -.->|"BCE vs resize(Sobel(y))"| LBND["L_bnd at this scale"]
