@@ -30,8 +30,8 @@ def boundary_loss(boundary_logits: list[torch.Tensor], targets: torch.Tensor) ->
     boundary_gt = boundary_targets_from_masks(targets)
     losses = []
     for logits in boundary_logits:
-        resized = F.interpolate(boundary_gt, size=logits.shape[-2:], mode="nearest")
-        losses.append(F.binary_cross_entropy_with_logits(logits, resized))
+        upsampled_logits = F.interpolate(logits, size=boundary_gt.shape[-2:], mode="bilinear", align_corners=False)
+        losses.append(F.binary_cross_entropy_with_logits(upsampled_logits, boundary_gt))
     return torch.stack(losses).mean()
 
 

@@ -19,6 +19,6 @@ def boundary_targets_from_masks(masks: torch.Tensor) -> torch.Tensor:
         ).unsqueeze(0)
         grad_x = F.conv2d(targets, sobel_x, padding=1)
         grad_y = F.conv2d(targets, sobel_y, padding=1)
-        magnitude = torch.sqrt(grad_x.square() + grad_y.square() + 1e-8)
-        edges = (magnitude > 0).float()
+        magnitude = torch.sqrt(grad_x.square() + grad_y.square())
+        edges = (magnitude > 1e-3).float()
         return F.max_pool2d(edges, kernel_size=3, stride=1, padding=1)

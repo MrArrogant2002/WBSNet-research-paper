@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 import torch
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from wbsnet.config import load_config

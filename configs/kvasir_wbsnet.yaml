@@ -11,3 +11,6 @@ dataset:
 train:
   epochs: 200
   batch_size: 16
+
+evaluation:
+  compute_hd95: true

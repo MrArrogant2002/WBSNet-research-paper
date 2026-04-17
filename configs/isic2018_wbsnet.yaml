@@ -7,7 +7,12 @@ experiment:
 dataset:
   name: ISIC2018
   root: data/ISIC2018
+  normalize_mean: [0.763, 0.546, 0.570]
+  normalize_std: [0.141, 0.152, 0.169]
 
 train:
   epochs: 100
   batch_size: 16
+
+evaluation:
+  compute_hd95: true

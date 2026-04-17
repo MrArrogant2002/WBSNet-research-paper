@@ -49,16 +49,18 @@ class WaveletTransform2d(torch.nn.Module):
     def __init__(self, wavelet_type: str = "haar") -> None:
         super().__init__()
         self.wavelet_type = wavelet_type
+        dec_lo, dec_hi, _, _ = _wavelet_filters(wavelet_type)
+        # Build as float32 once and register as buffer — autocast handles dtype promotion at forward time
+        filters = _stack_filters(dec_lo, dec_hi, torch.device("cpu"), torch.float32)
+        self.register_buffer("dec_filters", filters)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         bsz, channels, height, width = x.shape
         if height % 2 != 0 or width % 2 != 0:
             raise ValueError(f"Wavelet input must be even-sized, got {x.shape}")
 
-        dec_lo, dec_hi, _, _ = _wavelet_filters(self.wavelet_type)
-        base_filters = _stack_filters(dec_lo, dec_hi, x.device, x.dtype)
-        padding = max(len(dec_lo) // 2 - 1, 0)
-        weight = base_filters.repeat(channels, 1, 1, 1)
+        padding = max(self.dec_filters.shape[-1] // 2 - 1, 0)
+        weight = self.dec_filters.to(dtype=x.dtype).repeat(channels, 1, 1, 1)
         transformed = F.conv2d(x, weight, stride=2, padding=padding, groups=channels)
         transformed = transformed.view(bsz, channels, 4, transformed.shape[-2], transformed.shape[-1])
         return transformed[:, :, 0], transformed[:, :, 1], transformed[:, :, 2], transformed[:, :, 3]
@@ -68,6 +70,10 @@ class InverseWaveletTransform2d(torch.nn.Module):
     def __init__(self, wavelet_type: str = "haar") -> None:
         super().__init__()
         self.wavelet_type = wavelet_type
+        _, _, rec_lo, rec_hi = _wavelet_filters(wavelet_type)
+        # Build as float32 once and register as buffer
+        filters = _stack_filters(rec_lo, rec_hi, torch.device("cpu"), torch.float32)
+        self.register_buffer("rec_filters", filters)
 
     def forward(
         self,
@@ -77,9 +83,7 @@ class InverseWaveletTransform2d(torch.nn.Module):
         hh: torch.Tensor,
     ) -> torch.Tensor:
         _, channels, _, _ = ll.shape
-        _, _, rec_lo, rec_hi = _wavelet_filters(self.wavelet_type)
-        base_filters = _stack_filters(rec_lo, rec_hi, ll.device, ll.dtype)
-        padding = max(len(rec_lo) // 2 - 1, 0)
+        padding = max(self.rec_filters.shape[-1] - 2, 0)  # correct for all filter lengths (Haar: 0, db2: 2)
         packed = torch.stack([ll, lh, hl, hh], dim=2).reshape(ll.shape[0], channels * 4, ll.shape[-2], ll.shape[-1])
-        weight = base_filters.repeat(channels, 1, 1, 1)
+        weight = self.rec_filters.to(dtype=ll.dtype).repeat(channels, 1, 1, 1)
         return F.conv_transpose2d(packed, weight, stride=2, padding=padding, groups=channels)

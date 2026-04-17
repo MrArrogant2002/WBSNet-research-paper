@@ -20,9 +20,10 @@ class HFBA(nn.Module):
         )
         self.boundary_head = nn.Conv2d(channels, 1, kernel_size=1)
 
-    def forward(self, lh: torch.Tensor, hl: torch.Tensor, hh: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, lh: torch.Tensor, hl: torch.Tensor, hh: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         merged = torch.cat([lh, hl, hh], dim=1)
         reduced = self.pointwise(self.depthwise(merged))
         boundary_logits = self.boundary_head(reduced)
-        attended = reduced * torch.sigmoid(boundary_logits)
-        return attended, boundary_logits
+        gate = torch.sigmoid(boundary_logits)
+        attended = reduced * gate
+        return attended, gate, boundary_logits

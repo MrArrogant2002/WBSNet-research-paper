@@ -88,10 +88,18 @@ class ResNetEncoder(nn.Module):
                 "Loading ImageNet pretrained ResNet-34 requires torchvision and either internet access or cached weights."
             ) from exc
 
+        # torchvision uses "conv1.*" / "bn1.*" for the stem; our encoder uses "stem.conv1.*" / "stem.bn1.*"
+        remapped: dict[str, torch.Tensor] = {}
+        for key, value in state.items():
+            if key.startswith("conv1.") or key.startswith("bn1."):
+                remapped["stem." + key] = value
+            elif key.startswith("layer"):
+                remapped[key] = value
+            # skip fc.* weights
+
         current = self.state_dict()
         compatible = {
-            key: value
-            for key, value in state.items()
-            if key in current and tuple(value.shape) == tuple(current[key].shape)
+            k: v for k, v in remapped.items()
+            if k in current and tuple(v.shape) == tuple(current[k].shape)
         }
         self.load_state_dict(compatible, strict=False)

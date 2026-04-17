@@ -68,10 +68,10 @@ class WBSModule(nn.Module):
             ll = self.lfsa(ll)
 
         if self.use_hfba and self.hfba is not None:
-            hf, boundary_logits = self.hfba(lh, hl, hh)
-            lh = hf
-            hl = hf
-            hh = hf
+            hf, gate, boundary_logits = self.hfba(lh, hl, hh)
+            lh = lh * gate
+            hl = hl * gate
+            hh = hh * gate
         else:
             boundary_logits = None
 

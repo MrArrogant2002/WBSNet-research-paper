@@ -61,7 +61,7 @@ def _aggregate_frame(frame: pd.DataFrame) -> pd.DataFrame:
 
     grouped = frame.groupby(["record_type", "dataset_name", "variant_name"], dropna=False)[available]
     mean_df = grouped.mean().add_suffix("_mean")
-    std_df = grouped.std(ddof=0).fillna(0.0).add_suffix("_std")
+    std_df = grouped.std(ddof=1).fillna(0.0).add_suffix("_std")
     count_df = grouped.size().rename("num_runs")
     return pd.concat([mean_df, std_df, count_df], axis=1).reset_index()
 

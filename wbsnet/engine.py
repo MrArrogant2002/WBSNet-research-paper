@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 import torch
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from tqdm import tqdm
 
 from .losses import total_loss
@@ -128,7 +128,7 @@ def run_epoch(
     threshold = float(config["evaluation"].get("threshold", 0.5))
     meter = BinarySegmentationMeter(
         threshold=threshold,
-        compute_hd95=bool(config["evaluation"].get("compute_hd95", True)),
+        compute_hd95=False if training else bool(config["evaluation"].get("compute_hd95", True)),
     )
     loss_totals = {"segmentation_loss": 0.0, "boundary_loss": 0.0, "total_loss": 0.0}
     loss_steps = 0
@@ -228,7 +228,7 @@ def evaluate_and_save_predictions(
     threshold = float(config["evaluation"].get("threshold", 0.5))
     meter = BinarySegmentationMeter(
         threshold=threshold,
-        compute_hd95=bool(config["evaluation"].get("compute_hd95", True)),
+        compute_hd95=bool(config["evaluation"].get("compute_hd95", True)),  # always use config for eval
     )
     loss_totals = {"segmentation_loss": 0.0, "boundary_loss": 0.0, "total_loss": 0.0}
     loss_steps = 0

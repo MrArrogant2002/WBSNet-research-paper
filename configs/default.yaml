@@ -63,7 +63,7 @@ train:
 
 evaluation:
   threshold: 0.5
-  compute_hd95: true
+  compute_hd95: false  # enable only for final evaluation runs (evaluate.py), not during training
   save_predictions: true
   save_paper_panels: true
   save_contact_sheet: true
