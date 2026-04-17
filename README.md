@@ -375,7 +375,6 @@ wbsnet/
   utils/
 train.py
 evaluate.py
-test.py
 predict.py
 aggregate_results.py
 requirements.txt

@@ -6,7 +6,7 @@ outputs from `diagrams/` (Mermaid or TikZ) or from
 
 | File                          | Referenced by                      | Source                                                   |
 |-------------------------------|------------------------------------|----------------------------------------------------------|
-| `wbsnet_architecture.png`     | Fig. 1 (architecture)              | `diagrams/wbsnet_architecture.tikz` or `WBSNet_Architecture.png` |
+| `wbsnet_architecture.png`     | Fig. 1 (architecture)              | `diagrams/wbsnet_architecture.tikz` or `docs/WBSNet_Architecture.png` |
 | `wbs_module.png`              | Fig. 2 (WBS module)                | `diagrams/wbs_module.tikz`                                |
 | `qualitative.png`             | Fig. 3 (qualitative)               | `scripts/make_paper_figures.py --input-dir outputs/.../predictions` |
 | `lambda_sensitivity.png`      | Fig. 4 (lambda sweep)              | matplotlib script on `aggregate_results.py` output        |

@@ -14,6 +14,11 @@ class WBSNet(nn.Module):
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__()
         model_cfg = config["model"]
+        num_classes = int(model_cfg.get("num_classes", 1))
+        if num_classes != 1:
+            raise ValueError(
+                f"WBSNet currently targets binary segmentation; got num_classes={num_classes}."
+            )
         decoder_channels = model_cfg.get("decoder_channels", [256, 128, 64, 32])
         reduction_ratio = int(model_cfg.get("reduction_ratio", 16))
 
@@ -69,7 +74,7 @@ class WBSNet(nn.Module):
         self.dec3 = DecoderBlock(decoder_channels[0], 128, decoder_channels[1])
         self.dec2 = DecoderBlock(decoder_channels[1], 64, decoder_channels[2])
         self.dec1 = DecoderBlock(decoder_channels[2], 64, decoder_channels[3])
-        self.head = nn.Conv2d(decoder_channels[3], int(model_cfg.get("num_classes", 1)), kernel_size=1)
+        self.head = nn.Conv2d(decoder_channels[3], num_classes, kernel_size=1)
 
     def forward(self, x: torch.Tensor) -> dict[str, Any]:
         stem, layer1, layer2, layer3, bottleneck = self.encoder(x)
@@ -94,24 +99,26 @@ def build_model(config: dict[str, Any]) -> WBSNet:
 
 def variant_name_from_config(config: dict[str, Any]) -> str:
     model_cfg = config["model"]
-    if (
-        model_cfg.get("use_wavelet", True)
-        and model_cfg.get("use_lfsa", True)
-        and model_cfg.get("use_hfba", True)
-        and model_cfg.get("boundary_supervision", True)
-        and str(model_cfg.get("wavelet_type", "haar")).lower() in {"db2", "daubechies2", "daubechies-2"}
-    ):
-        return "A7_db2_wavelet"
-    if not model_cfg.get("use_wavelet", True) and not model_cfg.get("use_lfsa", True) and not model_cfg.get("use_hfba", True):
+    use_wavelet = bool(model_cfg.get("use_wavelet", True))
+    use_lfsa = bool(model_cfg.get("use_lfsa", True))
+    use_hfba = bool(model_cfg.get("use_hfba", True))
+    boundary_supervision = bool(model_cfg.get("boundary_supervision", True))
+    wavelet_type = str(model_cfg.get("wavelet_type", "haar")).lower()
+    is_db2 = wavelet_type in {"db2", "daubechies2", "daubechies-2"}
+
+    # Most-specific variants first so later, broader predicates cannot shadow them.
+    if not use_wavelet and not use_lfsa and not use_hfba:
         return "A1_identity_unet"
-    if model_cfg.get("use_wavelet", True) and model_cfg.get("use_lfsa", True) and model_cfg.get("use_hfba", True) and model_cfg.get("boundary_supervision", True):
+    if use_wavelet and use_lfsa and use_hfba and boundary_supervision and is_db2:
+        return "A7_db2_wavelet"
+    if use_wavelet and use_lfsa and use_hfba and boundary_supervision:
         return "A2_full_wbsnet"
-    if model_cfg.get("use_wavelet", True) and model_cfg.get("use_lfsa", True) and not model_cfg.get("use_hfba", True):
-        return "A3_lfsa_only"
-    if model_cfg.get("use_wavelet", True) and not model_cfg.get("use_lfsa", True) and model_cfg.get("use_hfba", True):
-        return "A4_hfba_only"
-    if not model_cfg.get("boundary_supervision", True):
+    if use_wavelet and use_lfsa and use_hfba and not boundary_supervision:
         return "A5_no_boundary_supervision"
-    if not model_cfg.get("use_wavelet", True):
+    if not use_wavelet and use_lfsa and use_hfba:
         return "A6_no_wavelet"
+    if use_wavelet and use_lfsa and not use_hfba:
+        return "A3_lfsa_only"
+    if use_wavelet and not use_lfsa and use_hfba:
+        return "A4_hfba_only"
     return "custom_variant"

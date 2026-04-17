@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -51,10 +52,21 @@ def _parse_value(value: str) -> Any:
 def _set_nested_key(config: dict[str, Any], dotted_key: str, value: Any) -> None:
     keys = dotted_key.split(".")
     cursor = config
+    unknown_prefix: list[str] = []
     for key in keys[:-1]:
         if key not in cursor or not isinstance(cursor[key], dict):
+            if key not in cursor:
+                unknown_prefix = keys[: keys.index(key) + 1]
             cursor[key] = {}
         cursor = cursor[key]
+    if keys[-1] not in cursor and not unknown_prefix:
+        unknown_prefix = keys
+    if unknown_prefix:
+        warnings.warn(
+            f"Override key '{dotted_key}' does not match any existing config field "
+            f"(created new path: {'.'.join(unknown_prefix)}). Check for typos.",
+            stacklevel=3,
+        )
     cursor[keys[-1]] = value
 
 

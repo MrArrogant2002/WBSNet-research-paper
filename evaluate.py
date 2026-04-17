@@ -36,6 +36,12 @@ def main() -> None:
     args = parse_args()
     load_env_file(".env")
     config = load_config(args.config, args.override)
+    # Final evaluation should report HD95. The shared default config disables it
+    # during training for speed; force it on here unless the user explicitly
+    # opted out via --override evaluation.compute_hd95=false.
+    user_set_hd95 = any(o.startswith("evaluation.compute_hd95=") for o in args.override)
+    if not user_set_hd95:
+        config.setdefault("evaluation", {})["compute_hd95"] = True
     distributed_state = init_distributed(config["runtime"]["distributed"].get("backend", "nccl"))
     device = select_device(config, distributed_state)
 

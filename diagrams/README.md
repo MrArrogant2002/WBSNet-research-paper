@@ -13,10 +13,10 @@ and TikZ (publication-quality LaTeX) versions of every figure.
 | `wbsnet_architecture.tikz`     | TikZ: camera-ready version of the full architecture   |
 | `wbs_module.tikz`              | TikZ: camera-ready version of the WBS module          |
 
-The existing canonical drawing `WBSNet_Architecture.drawio` +
-`WBSNet_Architecture.png` (at the repo root) is still the paper's Fig. 1
-source; the TikZ and Mermaid files above give you a pure-text alternative
-that survives LaTeX-only or VCS-only pipelines.
+The canonical drawing `docs/WBSNet_Architecture.drawio` +
+`docs/WBSNet_Architecture.png` is the paper's Fig. 1 source; the TikZ and
+Mermaid files above give you a pure-text alternative that survives
+LaTeX-only or VCS-only pipelines.
 
 ## Rendering
 

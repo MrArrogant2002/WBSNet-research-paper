@@ -46,28 +46,22 @@ skip connections that copy low-level encoder activations into a high-level
 decoder, carrying a persistent semantic gap and discarding the boundary
 cues that strided downsampling has already blurred. We present the
 \textbf{Wavelet Boundary Skip Network (WBSNet)}, a backbone-agnostic
-encoder--decoder architecture in which every skip connection is replaced by
-a Wavelet Boundary Skip (WBS) module. A WBS module decomposes the encoder
-feature into a low-frequency approximation sub-band and three directional
-high-frequency sub-bands via a two-dimensional discrete wavelet transform,
-recalibrates the approximation with a Low-Frequency Semantic Attention
-block (LFSA), and enhances the high-frequency stream with a
-depthwise-separable, boundary-supervised High-Frequency Boundary Attention
-block (HFBA) before reconstructing the refined skip through the inverse
-transform. Four WBS modules, operating at resolutions $H/2$, $H/4$, $H/8$,
-and $H/16$, jointly provide deep Sobel-derived boundary supervision at every
-scale while adding only $\approx\!1.1$M parameters on top of a ResNet-34
-U-Net. On Kvasir-SEG, CVC-ClinicDB, CVC-ColonDB (cross-dataset), and ISIC
-2018, WBSNet consistently improves Dice, IoU, and $\mathrm{HD}_{95}$ over
-strong CNN, Transformer, and Mamba baselines. Our ablation study isolates
-the contributions of the wavelet decomposition, the LFSA channel
-recalibration, the HFBA boundary head, deep boundary supervision, and the
-choice of wavelet family, confirming that the wavelet decomposition itself,
-not merely ``more attention on the skip features,'' is the dominant factor
-for boundary accuracy. We additionally provide a gradient-flow analysis,
-visualise the sub-band attention maps, quantify training dynamics across
-seeds, and discuss deployment implications. Code and configurations are
-released for full reproducibility.
+encoder--decoder architecture in which every skip connection is replaced
+by a Wavelet Boundary Skip (WBS) module. A WBS module decomposes the
+encoder feature into a low-frequency approximation sub-band and three
+directional high-frequency sub-bands via a two-dimensional discrete
+wavelet transform, recalibrates the approximation with a Low-Frequency
+Semantic Attention (LFSA) block, and enhances the high-frequency stream
+with a depthwise-separable, boundary-supervised High-Frequency Boundary
+Attention (HFBA) block before reconstructing the refined skip through the
+inverse transform. Four WBS modules deliver deep Sobel-derived boundary
+supervision at every scale while adding only $\approx\!1.1$M parameters
+on top of a ResNet-34 U-Net. On Kvasir-SEG, CVC-ClinicDB, CVC-ColonDB
+(cross-dataset), and ISIC~2018, WBSNet consistently improves Dice, IoU,
+and $\mathrm{HD}_{95}$ over strong CNN, Transformer, and Mamba baselines.
+An ablation study isolates the wavelet decomposition as the dominant
+factor for boundary accuracy---not merely ``more attention on the skip
+features.'' Code and configurations are released for reproducibility.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -94,7 +88,7 @@ interior.
 The U-Net family~\cite{ronneberger2015unet} has dominated medical
 segmentation for most of a decade because its skip connections recover
 spatial detail lost to encoder downsampling. Subsequent work has explored
-deeper encoders (ResNet, EfficientNet), attention
+deeper encoders (ResNet~\cite{he2016resnet}, EfficientNet), attention
 gates~\cite{oktay2018attnunet}, denser
 skips~\cite{zhou2018unetpp,alom2022r2upp}, Transformer
 encoders~\cite{chen2021transunet,cao2021swinunet}, and state-space
@@ -307,7 +301,7 @@ Section~\ref{sec:discussion} and Appendix~\ref{app:backbones}.
 \subsection{Lightweight and Mobile Segmentation}
 \label{sec:related:lightweight}
 
-PMFSNet~\cite{pmfsnet2024}, MobileUNet, and nnU-Net's low-resolution
+PMFSNet~\cite{pmfsnet2024}, MobileUNet, and nnU-Net's~\cite{isensee2021nnu} low-resolution
 configurations target edge deployment with sub-million-parameter networks,
 typically at a measurable quality cost. WBSNet is not strictly a
 mobile-class model but its WBS module adds only $\approx\!1.1$M parameters
@@ -1115,7 +1109,7 @@ Promising directions include:
         test-time plug-in on top of SAM or MedSAM for interactive margin
         refinement.
   \item \textbf{Semi-supervised WBSNet.} Pairing the wavelet skip with
-        consistency regularisation as in~\cite{fmddc2026}.
+        consistency regularisation as in~\cite{dai2025fmddc}.
   \item \textbf{3D extension.} A 3D separable Haar DWT fits naturally into
         volumetric U-Net encoders for CT/MRI organ segmentation.
 \end{enumerate}

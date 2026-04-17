@@ -62,7 +62,6 @@ def main() -> None:
     ok = compileall.compile_file(root / "train.py", quiet=1) and ok
     ok = compileall.compile_file(root / "evaluate.py", quiet=1) and ok
     ok = compileall.compile_file(root / "predict.py", quiet=1) and ok
-    ok = compileall.compile_file(root / "test.py", quiet=1) and ok
     ok = compileall.compile_file(root / "aggregate_results.py", quiet=1) and ok
     ok = compileall.compile_dir(root / "scripts", quiet=1) and ok
     config_errors = validate_configs(root)

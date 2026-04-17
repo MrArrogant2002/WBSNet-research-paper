@@ -459,7 +459,7 @@ WBSNet/
 │   ├── boundary_gt.py     # Sobel edge GT generation
 │   └── visualize.py       # Qualitative result visualization
 ├── train.py               # Training script
-├── test.py                # Evaluation script
+├── evaluate.py            # Evaluation script
 ├── configs/
 │   ├── kvasir.yaml        # Dataset-specific config
 │   └── isic.yaml
