@@ -1,59 +1,101 @@
 # WBSNet
 
-WBSNet is a DGX-ready research codebase for the paper idea in this repository:
 Wavelet Boundary Skip Network for medical image segmentation.
 
-The manuscript lives in [`paper/paper.tex`](paper/paper.tex) (IEEE conference
-style). Figure sources are in [`diagrams/`](diagrams/). Build the PDF with
-`cd paper && make`.
+This repository contains three related but intentionally separate deliverables:
 
-The repo includes:
+- A local and DGX-friendly PyTorch codebase driven by YAML configs and the CLI entry points `train.py`, `evaluate.py`, and `predict.py`.
+- A Kaggle-first research notebook, [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb), designed for constrained notebook storage and session limits.
+- The paper sources in [`paper/`](paper/) and supporting figures in [`diagrams/`](diagrams/).
 
-- A pure PyTorch implementation of `WBSNet` with four WBS skip modules.
-- Baseline and ablation support through YAML configs, including `A1-A7`.
-- Training, evaluation, prediction export, and paper-statistics aggregation.
-- Single-GPU and multi-GPU execution through `torchrun`.
-- Weights & Biases logging through `.env`.
-- Beginner-friendly DGX helper scripts for setup, hardware checks, and launching runs.
+## Workflow Split
 
-## What This Repo Produces
+This repo supports two execution paths. They are related, but they are not meant to be treated as the same runtime.
 
-Each run writes artifacts that are useful for paper writing:
+| Workflow | Primary file(s) | Best for | Config source | Data layout | Output style |
+| --- | --- | --- | --- | --- | --- |
+| Kaggle notebook | [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb) | Kaggle sessions, paper sweeps, constrained output storage | Notebook config cells | Processed `WBSNet_Dataset/<dataset>/<split>/...` layout | Lean, storage-aware, notebook-managed |
+| Local / DGX Python pipeline | [`train.py`](train.py), [`evaluate.py`](evaluate.py), [`predict.py`](predict.py) | Workstations, servers, DGX, repeatable script runs | `configs/*.yaml` | Raw dataset folders or split-driven layouts | Richer artifacts under `outputs/` |
 
-- `metrics.csv`: epoch-by-epoch train and validation metrics
-- `best_metrics.json`: best validation snapshot
-- `run_summary.json`: compact run metadata for aggregation
-- `evaluation/<dataset>.json`: final evaluation metrics
-- `predictions/`: masks, overlays, paper panels, and contact sheets for qualitative figures
-- `aggregated_results.*`: merged outputs across seeds and variants
-- `artifacts/system_report.json`: DGX hardware and package report
+Important:
 
-Logged metrics include:
+- The Kaggle notebook is self-contained and does not read the YAML configs in `configs/`.
+- The local `.py` pipeline is the main script-based training path and should be treated as the default for workstation or DGX runs.
+- The notebook and the `.py` pipeline share the same research model family and metrics, but their runtime policies are intentionally different because Kaggle has tighter storage and session limits.
 
-- overall `loss`
-- `segmentation_loss`
-- `boundary_loss`
-- `dice`
-- `iou`
-- `precision`
-- `recall`
-- `accuracy`
-- `specificity`
-- `hd95`
+## What The Project Contains
 
-## Hardware Requirements
+| Path | Purpose |
+| --- | --- |
+| [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb) | Full Kaggle notebook workflow for single runs, paper sweeps, evaluation, exports, and paper tables |
+| [`data_preprocessing.ipynb`](data_preprocessing.ipynb) | Dataset preparation notebook |
+| [`train.py`](train.py) | Local / DGX training entry point |
+| [`evaluate.py`](evaluate.py) | Evaluate a trained checkpoint and export metrics / predictions |
+| [`predict.py`](predict.py) | Save qualitative predictions from a trained checkpoint |
+| [`aggregate_results.py`](aggregate_results.py) | Aggregate run summaries and evaluation outputs |
+| [`configs/`](configs/) | YAML configs for the local / DGX Python pipeline |
+| [`scripts/`](scripts/) | Helper scripts for verification, DGX launch, ablations, figures, significance tests, and complexity |
+| [`wbsnet/`](wbsnet/) | Package code for models, losses, metrics, data loading, logging, and utilities |
+| [`paper/`](paper/) | Manuscript sources |
+| [`docs/`](docs/) | Project notes such as hardware planning |
 
-The short version:
+## Model Variants
 
-- Minimum: `1 x 12 GB GPU`, `16 GB RAM`, `100 GB SSD`
-- Recommended: `1 x 24 GB GPU`, `32 GB RAM`, `500 GB NVMe SSD`
-- Ideal for the full paper plan: `A100 40/80 GB` or multi-GPU
+The paper workflow uses seven named variants:
 
-Detailed planning notes are in [docs/HARDWARE_REQUIREMENTS.md](/home/eswarbalu/Desktop/WBSNET-paper/docs/HARDWARE_REQUIREMENTS.md).
+| Variant | Meaning | Primary config |
+| --- | --- | --- |
+| `A1` | Identity Skip U-Net baseline | [`configs/ablation_identity_unet.yaml`](configs/ablation_identity_unet.yaml) |
+| `A2` | Full WBSNet | [`configs/kvasir_wbsnet.yaml`](configs/kvasir_wbsnet.yaml) |
+| `A3` | LFSA only | [`configs/ablation_lfsa_only.yaml`](configs/ablation_lfsa_only.yaml) |
+| `A4` | HFBA only | [`configs/ablation_hfba_only.yaml`](configs/ablation_hfba_only.yaml) |
+| `A5` | No boundary supervision | [`configs/ablation_no_boundary_supervision.yaml`](configs/ablation_no_boundary_supervision.yaml) |
+| `A6` | No wavelet attention | [`configs/ablation_no_wavelet_attention.yaml`](configs/ablation_no_wavelet_attention.yaml) |
+| `A7` | `db2` wavelet variant | [`configs/ablation_db2_wavelet.yaml`](configs/ablation_db2_wavelet.yaml) |
 
-## Datasets To Download
+Dataset-specific full-model and baseline configs are also provided for Kvasir, CVC-ClinicDB, ISIC2018, and Kvasir-to-ColonDB evaluation.
 
-Recommended order:
+## Outputs
+
+### Local / DGX Python pipeline
+
+The script-based pipeline writes into `outputs/` by default.
+
+Typical run artifacts:
+
+- `metrics.csv`
+- `best_metrics.json`
+- `run_summary.json`
+- `checkpoints/best.pt`
+- `checkpoints/epoch_*.pt` when periodic checkpointing is enabled
+- `checkpoints/last.pt` when `train.save_last_checkpoint=true`
+- `evaluation/<dataset>.json`
+- `predictions/` with masks, overlays, paper panels, and contact sheets
+
+### Kaggle notebook
+
+The notebook writes into `/kaggle/working/wbsnet_paper_runs` and is intentionally more conservative about storage:
+
+- lightweight best-checkpoint handling
+- no periodic checkpoint flood by default
+- reduced qualitative export pressure
+- W&B used for keeping metrics remotely
+
+If you are on Kaggle, treat the notebook as the primary interface and let it manage its own outputs.
+
+## Hardware Guidance
+
+Short version:
+
+- Local minimum: `1 x 12 GB GPU`, `16 GB RAM`, and enough free disk for checkpoints and predictions
+- Better local experience: `1 x 24 GB GPU`, `32 GB RAM`
+- Ideal for the full paper suite: DGX or another multi-GPU server
+
+More detail is in [docs/HARDWARE_REQUIREMENTS.md](docs/HARDWARE_REQUIREMENTS.md).
+
+## Datasets
+
+Recommended download order:
 
 1. `Kvasir-SEG`
 2. `CVC-ClinicDB`
@@ -62,14 +104,16 @@ Recommended order:
 
 How they are used:
 
-- `Kvasir-SEG`: first smoke test and main polyp benchmark
+- `Kvasir-SEG`: first smoke test and primary polyp benchmark
 - `CVC-ClinicDB`: second in-domain polyp benchmark
-- `CVC-ColonDB`: cross-dataset generalization evaluation
+- `CVC-ColonDB`: cross-dataset generalization target
 - `ISIC2018`: skin lesion benchmark
 
-## Expected Dataset Layout
+## Dataset Layouts
 
-The loaders are config-driven, but the default structure is:
+### Local / DGX raw layout for `.py` scripts
+
+This is the default script-based layout:
 
 ```text
 data/
@@ -89,208 +133,207 @@ data/
 
 Important:
 
-- Image and mask filenames must have the same stem, such as `0001.jpg` and `0001.png`
-- If your downloaded dataset uses a different folder structure, either reorganize it or override `dataset.root`, `dataset.image_dir`, and `dataset.mask_dir`
+- image and mask filenames must share the same stem
+- you can override `dataset.root`, `dataset.image_dir`, and `dataset.mask_dir`
+- the local `.py` path also supports `ratio`, `predefined`, and `pre_split_dirs` split modes
 
-## Simple DGX Workflow
+### Local / DGX pre-split layout for `.py` scripts
 
-If you are new to DGX, follow this exact order.
+If you already have `train`, `val`, and `test` directories, use `dataset.split_strategy=pre_split_dirs`:
 
-### 1. Connect to the server
-
-```bash
-ssh your_username@your_dgx_ip
+```text
+some_dataset_root/
+  train/
+    images/
+    masks/
+  val/
+    images/
+    masks/
+  test/
+    images/
+    masks/
 ```
 
-### 2. Start a persistent terminal session
+### Kaggle processed layout for the notebook
 
-```bash
-tmux new -s wbsnet
+The notebook expects the processed dataset structure under a detected `WBSNet_Dataset` root:
+
+```text
+WBSNet_Dataset/
+  kvasir/
+    train/
+      images/
+      masks/
+      boundaries/
+    val/
+      images/
+      masks/
+      boundaries/
+    test/
+      images/
+      masks/
+      boundaries/
+  cvc_clinicdb/
+    ...
+  cvc_colondb/
+    ...
+  isic2018/
+    ...
 ```
 
-Detach without stopping the job:
+The notebook auto-detects `WBSNet_Dataset` from `/kaggle/input` when possible.
+
+## Installation
+
+Choose one of these local setup options.
+
+### Option 1: `pip`
 
 ```bash
-Ctrl+b then d
+python -m venv .venv
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
 
-Reattach later:
+Activate the virtual environment with the command that matches your shell:
+
+- Windows PowerShell: `.\.venv\Scripts\Activate.ps1`
+- Windows Command Prompt: `.venv\Scripts\activate.bat`
+- Linux or macOS: `source .venv/bin/activate`
+
+### Option 2: Conda
 
 ```bash
-tmux attach -t wbsnet
-```
-
-### 3. Copy the repo to the DGX
-
-Run this from your local machine:
-
-```bash
-rsync -avhP /home/eswarbalu/Desktop/WBSNET-paper/ your_username@your_dgx_ip:~/WBSNET-paper/
-```
-
-### 4. Upload the first dataset
-
-Start with `Kvasir-SEG` only.
-
-Run this from your local machine:
-
-```bash
-rsync -avhP ~/datasets/Kvasir-SEG/ your_username@your_dgx_ip:~/wbsnet-data/Kvasir-SEG/
-```
-
-### 5. Set up the environment on the DGX
-
-```bash
-cd ~/WBSNET-paper
-bash scripts/setup_dgx.sh wbsnet
+conda env create -f environment.yml
 conda activate wbsnet
-python3 scripts/check_system.py
 ```
 
-### 6. Run a 1-GPU smoke test first
+Notes:
+
+- `pyproject.toml` is the main package definition.
+- `requirements.txt` is a pinned fallback list, not the best source of truth for the package metadata.
+
+## Local / DGX Python Workflow
+
+Use this path when you want normal script-driven training on a workstation, server, or DGX. This is the preferred path outside Kaggle.
+
+### 1. Verify the repo
 
 ```bash
-bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 1 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
+python scripts/verify_repo.py
 ```
 
-### 7. Run the real multi-GPU experiment
+### 2. Run a smoke test
 
 ```bash
-bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 8 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG
+python train.py --config configs/kvasir_wbsnet.yaml --override train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
 ```
 
-### 8. Evaluate and aggregate
-
-```bash
-python evaluate.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/kvasir_wbsnet/<run_name>/checkpoints/best.pt --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG
-python aggregate_results.py --root outputs --output outputs/aggregated
-```
-
-## Dataset Upload Options
-
-### Option 1: Upload from your laptop with `rsync`
-
-```bash
-rsync -avhP ~/datasets/Kvasir-SEG/ your_username@your_dgx_ip:~/wbsnet-data/Kvasir-SEG/
-rsync -avhP ~/datasets/CVC-ClinicDB/ your_username@your_dgx_ip:~/wbsnet-data/CVC-ClinicDB/
-rsync -avhP ~/datasets/CVC-ColonDB/ your_username@your_dgx_ip:~/wbsnet-data/CVC-ColonDB/
-rsync -avhP ~/datasets/ISIC2018/ your_username@your_dgx_ip:~/wbsnet-data/ISIC2018/
-```
-
-### Option 2: Copy archive files and extract on the DGX
-
-```bash
-scp Kvasir-SEG.zip your_username@your_dgx_ip:~/wbsnet-data/
-ssh your_username@your_dgx_ip
-cd ~/wbsnet-data
-unzip -q Kvasir-SEG.zip -d Kvasir-SEG
-```
-
-### Option 3: Download directly on the DGX
-
-If the DGX has internet access, download and extract the datasets directly into `~/wbsnet-data/`.
-
-## Quick Start On A DGX Server
-
-```bash
-cd ~/WBSNET-paper
-bash scripts/setup_dgx.sh wbsnet
-conda activate wbsnet
-python3 scripts/check_system.py
-bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 1 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
-```
-
-If the smoke test passes, launch the real run:
-
-```bash
-bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 8 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG
-```
-
-## Slurm Workflow
-
-If your DGX is attached to a scheduler:
-
-```bash
-sbatch scripts/slurm_train.sh configs/kvasir_wbsnet.yaml
-```
-
-## Main Commands
-
-Train on the current machine:
+### 3. Run the full local training job
 
 ```bash
 python train.py --config configs/kvasir_wbsnet.yaml
 ```
 
-Train on DGX:
-
-```bash
-bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 8
-```
-
-Run a 1-epoch debug pass:
-
-```bash
-bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 1 --override train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
-```
-
-Evaluate:
+### 4. Evaluate the best checkpoint
 
 ```bash
 python evaluate.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/kvasir_wbsnet/<run_name>/checkpoints/best.pt
 ```
 
-Export qualitative predictions:
+### 5. Export qualitative predictions
 
 ```bash
-python predict.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/.../checkpoints/best.pt --split test
+python predict.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/kvasir_wbsnet/<run_name>/checkpoints/best.pt --split test
 ```
 
-Build a paper contact sheet from saved panels:
+## DGX Workflow
+
+If you are using a DGX or similar multi-GPU server:
+
+### 1. Connect and start a persistent session
 
 ```bash
-python scripts/make_paper_figures.py --input-dir outputs/.../predictions --limit 8 --columns 2
+ssh your_username@your_dgx_ip
+tmux new -s wbsnet
 ```
 
-Aggregate results:
+### 2. Copy the repo
 
 ```bash
-python aggregate_results.py --root outputs --output outputs/aggregated
+rsync -avhP /path/to/WBSNET-paper/ your_username@your_dgx_ip:~/WBSNET-paper/
 ```
 
-Run significance tests:
+### 3. Upload the first dataset
 
 ```bash
-python scripts/significance_tests.py --root outputs --output outputs/significance --record-type evaluation --reference A1_identity_unet
+rsync -avhP ~/datasets/Kvasir-SEG/ your_username@your_dgx_ip:~/wbsnet-data/Kvasir-SEG/
 ```
 
-Estimate parameters and FLOPs:
+### 4. Set up the environment
 
 ```bash
-python scripts/model_complexity.py --output outputs/model_complexity
+cd ~/WBSNET-paper
+bash scripts/setup_dgx.sh wbsnet
+conda activate wbsnet
+python scripts/check_system.py
 ```
 
-Run the ablation suite:
+### 5. Run a 1-GPU smoke test
 
 ```bash
-python scripts/run_ablation_suite.py --seeds 3407 3408 3409
+bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 1 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
 ```
 
-Generate a hardware report:
+### 6. Run the real training job
 
 ```bash
-python3 scripts/check_system.py
+bash scripts/train_dgx.sh configs/kvasir_wbsnet.yaml 8 --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG
 ```
 
-Verify the repo:
+### 7. Evaluate
 
 ```bash
-python3 scripts/verify_repo.py
+python evaluate.py --config configs/kvasir_wbsnet.yaml --checkpoint outputs/kvasir_wbsnet/<run_name>/checkpoints/best.pt --override dataset.root=/home/your_username/wbsnet-data/Kvasir-SEG
 ```
 
-## Config Notes
+If you are on Slurm:
 
-The experiment behavior is controlled through YAML in `configs/`.
+```bash
+sbatch scripts/slurm_train.sh configs/kvasir_wbsnet.yaml
+```
+
+## Kaggle Notebook Workflow
+
+Use this path when you want the notebook-managed paper workflow inside Kaggle.
+
+### What is different from the local `.py` pipeline
+
+- the notebook is self-contained
+- the notebook does not read `configs/*.yaml`
+- the notebook expects processed splits under `WBSNet_Dataset`
+- the notebook is more aggressive about controlling disk growth
+- the notebook is designed around Kaggle secrets and `/kaggle/working`
+
+### Recommended Kaggle steps
+
+1. Add the processed dataset as a Kaggle input.
+2. Confirm the input contains `WBSNet_Dataset`.
+3. Add `WANDB_API_KEY` in Kaggle Secrets if you want W&B logging.
+4. Open [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb) in Kaggle.
+5. Run the notebook top to bottom.
+6. Use the notebook's own config cells to choose single-run checks, paper sweeps, or lambda sweeps.
+7. Save important outputs or notebook versions before the session ends.
+
+### Kaggle notebook notes
+
+- The notebook is the right choice when Kaggle output limits matter.
+- The notebook is intentionally leaner than the local script path.
+- If you want full checkpoint histories and larger export folders, prefer the local `.py` pipeline instead of trying to force the notebook to behave like a workstation run.
+
+## Config Guide For The Local `.py` Pipeline
+
+The local and DGX scripts are controlled by YAML in [`configs/`](configs/).
 
 Useful knobs:
 
@@ -299,20 +342,26 @@ Useful knobs:
 - `dataset.mask_dir`
 - `dataset.split_strategy`
 - `dataset.split_files`
+- `dataset.num_workers`
+- `dataset.prefetch_factor`
 - `train.epochs`
 - `train.batch_size`
+- `train.save_every`
+- `train.save_last_checkpoint`
+- `train.save_best_full_state`
 - `runtime.wandb.mode`
 - `model.use_wavelet`
 - `model.use_lfsa`
 - `model.use_hfba`
 - `model.boundary_supervision`
 - `model.wavelet_type`
+- `evaluation.compute_hd95`
 - `evaluation.save_paper_panels`
 - `evaluation.save_contact_sheet`
 - `runtime.wandb.log_images_every`
 - `runtime.wandb.max_images`
 
-You can override config values from the command line:
+Override values from the CLI like this:
 
 ```bash
 python train.py --config configs/kvasir_wbsnet.yaml --override train.epochs=5 train.batch_size=4
@@ -320,84 +369,167 @@ python train.py --config configs/kvasir_wbsnet.yaml --override train.epochs=5 tr
 
 Useful split modes:
 
-- `dataset.split_strategy=ratio`: random train/val/test split
-- `dataset.split_strategy=predefined`: read exact sample ids from `dataset.split_files`
-- `--split all`: evaluate every sample in a dataset, which is what you want for `CVC-ColonDB`
+- `dataset.split_strategy=ratio`
+- `dataset.split_strategy=predefined`
+- `dataset.split_strategy=pre_split_dirs`
 
 Example predefined split override:
 
 ```bash
-python train.py --config configs/kvasir_wbsnet.yaml --override \
-  dataset.split_strategy=predefined \
-  dataset.split_files.train=splits/kvasir/train.txt \
-  dataset.split_files.val=splits/kvasir/val.txt \
-  dataset.split_files.test=splits/kvasir/test.txt
+python train.py --config configs/kvasir_wbsnet.yaml --override dataset.split_strategy=predefined dataset.split_files.train=splits/kvasir/train.txt dataset.split_files.val=splits/kvasir/val.txt dataset.split_files.test=splits/kvasir/test.txt
 ```
 
-Important configs that match the paper plan:
+## Config Files
 
-- `configs/kvasir_wbsnet.yaml`: full WBSNet on Kvasir
-- `configs/clinicdb_wbsnet.yaml`: full WBSNet on CVC-ClinicDB
-- `configs/isic2018_wbsnet.yaml`: full WBSNet on ISIC 2018
-- `configs/kvasir_unet_baseline.yaml`: vanilla ResNet-34 U-Net baseline on Kvasir
-- `configs/clinicdb_unet_baseline.yaml`: vanilla ResNet-34 U-Net baseline on CVC-ClinicDB
-- `configs/isic2018_unet_baseline.yaml`: vanilla ResNet-34 U-Net baseline on ISIC 2018
-- `configs/ablation_identity_unet.yaml`: A1
-- `configs/kvasir_wbsnet.yaml`: A2
-- `configs/ablation_lfsa_only.yaml`: A3
-- `configs/ablation_hfba_only.yaml`: A4
-- `configs/ablation_no_boundary_supervision.yaml`: A5
-- `configs/ablation_no_wavelet_attention.yaml`: A6
-- `configs/ablation_db2_wavelet.yaml`: A7
-- `configs/kvasir_colondb_generalization.yaml`: Kvasir-trained checkpoint evaluated on the full ColonDB set
-- `configs/kvasir_colondb_generalization_baseline.yaml`: baseline U-Net checkpoint evaluated on the full ColonDB set
+### Main local / DGX configs
 
-## W&B Note
+- [`configs/default.yaml`](configs/default.yaml): shared base config for the local `.py` pipeline
+- [`configs/kvasir_wbsnet.yaml`](configs/kvasir_wbsnet.yaml): full WBSNet on Kvasir
+- [`configs/clinicdb_wbsnet.yaml`](configs/clinicdb_wbsnet.yaml): full WBSNet on CVC-ClinicDB
+- [`configs/isic2018_wbsnet.yaml`](configs/isic2018_wbsnet.yaml): full WBSNet on ISIC2018
+- [`configs/kvasir_unet_baseline.yaml`](configs/kvasir_unet_baseline.yaml): baseline U-Net on Kvasir
+- [`configs/clinicdb_unet_baseline.yaml`](configs/clinicdb_unet_baseline.yaml): baseline U-Net on CVC-ClinicDB
+- [`configs/isic2018_unet_baseline.yaml`](configs/isic2018_unet_baseline.yaml): baseline U-Net on ISIC2018
+- [`configs/kvasir_colondb_generalization.yaml`](configs/kvasir_colondb_generalization.yaml): Kvasir-trained WBSNet evaluated on ColonDB
+- [`configs/kvasir_colondb_generalization_baseline.yaml`](configs/kvasir_colondb_generalization_baseline.yaml): baseline comparison for ColonDB evaluation
 
-This repo accepts either `WANDB_API_KEY` or the existing `WAND_API_KEY` from `.env`.
-If only `WAND_API_KEY` exists, it is mapped automatically to `WANDB_API_KEY` at runtime.
+### Ablation configs
 
-For smoke tests, use offline mode:
+- [`configs/ablation_identity_unet.yaml`](configs/ablation_identity_unet.yaml)
+- [`configs/ablation_lfsa_only.yaml`](configs/ablation_lfsa_only.yaml)
+- [`configs/ablation_hfba_only.yaml`](configs/ablation_hfba_only.yaml)
+- [`configs/ablation_no_boundary_supervision.yaml`](configs/ablation_no_boundary_supervision.yaml)
+- [`configs/ablation_no_wavelet_attention.yaml`](configs/ablation_no_wavelet_attention.yaml)
+- [`configs/ablation_db2_wavelet.yaml`](configs/ablation_db2_wavelet.yaml)
+
+### Optional constrained-environment script configs
+
+These are helper YAMLs for script-based runs in tighter environments. They are not used by the Kaggle notebook itself.
+
+- [`configs/kaggle_kvasir_wbsnet.yaml`](configs/kaggle_kvasir_wbsnet.yaml)
+- [`configs/kaggle_clinicdb_wbsnet.yaml`](configs/kaggle_clinicdb_wbsnet.yaml)
+- [`configs/kaggle_isic2018_wbsnet.yaml`](configs/kaggle_isic2018_wbsnet.yaml)
+
+## W&B
+
+### Local / DGX
+
+- put your API key in `.env`
+- supported names are `WANDB_API_KEY` and `WAND_API_KEY`
+- use `runtime.wandb.mode=offline` for smoke tests when needed
+
+### Kaggle
+
+- add `WANDB_API_KEY` in Kaggle Secrets
+- let the notebook read it from the environment
+
+Example offline local run:
 
 ```bash
---override runtime.wandb.mode=offline
+python train.py --config configs/kvasir_wbsnet.yaml --override runtime.wandb.mode=offline
 ```
+
+## Analysis And Reporting Commands
+
+Aggregate completed runs:
+
+```bash
+python aggregate_results.py --root outputs --output outputs/aggregated
+```
+
+Run the scripted ablation sweep:
+
+```bash
+python scripts/run_ablation_suite.py --seeds 3407 3408 3409
+```
+
+Estimate parameters and FLOPs:
+
+```bash
+python scripts/model_complexity.py --output outputs/model_complexity
+```
+
+Run statistical comparisons:
+
+```bash
+python scripts/significance_tests.py --root outputs --output outputs/significance --record-type evaluation --reference A1_identity_unet
+```
+
+Build qualitative figure sheets:
+
+```bash
+python scripts/make_paper_figures.py --input-dir outputs/<experiment>/<run_name>/predictions --limit 8 --columns 2
+```
+
+## Helper Scripts
+
+- [`scripts/verify_repo.py`](scripts/verify_repo.py): repository verification and smoke checks
+- [`scripts/check_system.py`](scripts/check_system.py): write a hardware / package report
+- [`scripts/setup_dgx.sh`](scripts/setup_dgx.sh): create or refresh a DGX conda environment
+- [`scripts/train_dgx.sh`](scripts/train_dgx.sh): launch `torchrun` jobs on a DGX
+- [`scripts/slurm_train.sh`](scripts/slurm_train.sh): submit training through Slurm
+- [`scripts/run_ablation_suite.py`](scripts/run_ablation_suite.py): launch ablations across seeds
+- [`scripts/model_complexity.py`](scripts/model_complexity.py): estimate parameter counts and FLOPs
+- [`scripts/significance_tests.py`](scripts/significance_tests.py): run statistical comparisons across variants
+- [`scripts/make_paper_figures.py`](scripts/make_paper_figures.py): build qualitative figure sheets
+- [`scripts/plot_lambda_sweep.py`](scripts/plot_lambda_sweep.py): visualize lambda-sweep results
+
+## Metrics
+
+Tracked metrics include:
+
+- `loss`
+- `segmentation_loss`
+- `boundary_loss`
+- `dice`
+- `iou`
+- `precision`
+- `recall`
+- `accuracy`
+- `specificity`
+- `hd95`
+
+## Paper Files
+
+- manuscript source: [`paper/paper.tex`](paper/paper.tex)
+- figure assets: [`diagrams/`](diagrams/)
+- build command:
+
+```bash
+cd paper
+make
+```
+
+## Repo Verification And First Runs
+
+### First local run
+
+1. Install the environment.
+2. Run `python scripts/verify_repo.py`.
+3. Run a 1-epoch Kvasir smoke test.
+4. Run the full `configs/kvasir_wbsnet.yaml` training job.
+5. Add the remaining datasets after Kvasir is stable.
+
+### First Kaggle run
+
+1. Attach the processed dataset input.
+2. Add the `WANDB_API_KEY` secret if needed.
+3. Run the notebook single-experiment sanity check first.
+4. Start the full paper suite only after the single run is healthy.
 
 ## Current Repo Layout
 
 ```text
 configs/
 docs/
+paper/
 scripts/
+tests/
 wbsnet/
-  data/
-  models/
-  utils/
-train.py
+aggregate_results.py
+data_preprocessing.ipynb
 evaluate.py
 predict.py
-aggregate_results.py
-requirements.txt
-environment.yml
+train.py
+WBSNet_Model.ipynb
 ```
-
-## Helper Scripts
-
-- `scripts/setup_dgx.sh`: create or update the DGX conda environment
-- `scripts/check_system.py`: save GPU and package information to `artifacts/system_report.json`
-- `scripts/train_dgx.sh`: launch single-node or multi-node `torchrun`
-- `scripts/slurm_train.sh`: submit through Slurm
-- `scripts/run_ablation_suite.py`: launch ablations across seeds
-- `scripts/make_paper_figures.py`: build paper contact sheets from saved qualitative panels
-- `scripts/significance_tests.py`: run paired/Welch t-tests across variants and datasets
-- `scripts/model_complexity.py`: estimate parameter counts and FLOPs for configs
-- `scripts/verify_repo.py`: structural verification plus optional runtime smoke checks when `torch` is installed
-
-## Recommended First Run
-
-1. Upload repo and `Kvasir-SEG`
-2. Run `bash scripts/setup_dgx.sh wbsnet`
-3. Run `python3 scripts/check_system.py`
-4. Run the 1-epoch smoke test
-5. Run the full `Kvasir-SEG` experiment
-6. Add the remaining datasets after the first full run is stable
