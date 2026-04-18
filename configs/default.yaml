@@ -20,6 +20,7 @@ dataset:
     test: 0.10
   split_seed: 3407
   num_workers: 8
+  prefetch_factor: 2
   pin_memory: true
   persistent_workers: true
   normalize_mean: [0.485, 0.456, 0.406]
@@ -60,6 +61,8 @@ train:
   monitor: dice
   monitor_mode: max
   save_every: 10
+  save_last_checkpoint: true
+  save_best_full_state: true
 
 evaluation:
   threshold: 0.5

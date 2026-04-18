@@ -61,6 +61,7 @@ def save_checkpoint(
     epoch: int,
     best_metric: float,
     config: dict[str, Any],
+    include_training_state: bool = True,
 ) -> None:
     module = model.module if hasattr(model, "module") else model
     payload = {
@@ -68,10 +69,11 @@ def save_checkpoint(
         "best_metric": best_metric,
         "config": config,
         "state_dict": module.state_dict(),
-        "optimizer": optimizer.state_dict(),
-        "scheduler": scheduler.state_dict(),
-        "scaler": scaler.state_dict(),
     }
+    if include_training_state:
+        payload["optimizer"] = optimizer.state_dict()
+        payload["scheduler"] = scheduler.state_dict()
+        payload["scaler"] = scaler.state_dict()
     target = Path(path)
     ensure_dir(target.parent)
     torch.save(payload, target)

@@ -83,7 +83,9 @@ class InverseWaveletTransform2d(torch.nn.Module):
         hh: torch.Tensor,
     ) -> torch.Tensor:
         _, channels, _, _ = ll.shape
-        padding = max(self.rec_filters.shape[-1] - 2, 0)  # correct for all filter lengths (Haar: 0, db2: 2)
+        # Match the analysis-side padding so longer filters such as db2
+        # reconstruct to the original spatial resolution.
+        padding = max(self.rec_filters.shape[-1] // 2 - 1, 0)
         packed = torch.stack([ll, lh, hl, hh], dim=2).reshape(ll.shape[0], channels * 4, ll.shape[-2], ll.shape[-1])
         weight = self.rec_filters.to(dtype=ll.dtype).repeat(channels, 1, 1, 1)
         return F.conv_transpose2d(packed, weight, stride=2, padding=padding, groups=channels)

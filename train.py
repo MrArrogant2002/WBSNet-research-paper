@@ -142,11 +142,12 @@ def main() -> None:
                         epoch,
                         best_metric,
                         config,
+                        include_training_state=bool(config["train"].get("save_best_full_state", True)),
                     )
                     persist_metrics(output_dir / "best_metrics.json", val_metrics)
 
             save_every = int(config["train"].get("save_every", 10))
-            if is_main_process(distributed_state) and (epoch + 1) % save_every == 0:
+            if is_main_process(distributed_state) and save_every > 0 and (epoch + 1) % save_every == 0:
                 save_checkpoint(
                     checkpoint_dir / f"epoch_{epoch + 1:03d}.pt",
                     model,
@@ -158,7 +159,7 @@ def main() -> None:
                     config,
                 )
 
-        if is_main_process(distributed_state):
+        if is_main_process(distributed_state) and bool(config["train"].get("save_last_checkpoint", True)):
             save_checkpoint(
                 checkpoint_dir / "last.pt",
                 model,

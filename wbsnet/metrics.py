@@ -70,6 +70,8 @@ class BinarySegmentationMeter:
         }
     )
     hd95_values: list[float] = field(default_factory=list)
+    dice_values: list[float] = field(default_factory=list)
+    iou_values: list[float] = field(default_factory=list)
 
     def update(self, logits: torch.Tensor, targets: torch.Tensor, loss: float) -> None:
         probs = torch.sigmoid(logits)
@@ -83,25 +85,38 @@ class BinarySegmentationMeter:
         self.counts["num_batches"] += 1.0
         self.counts["num_samples"] += float(targets.shape[0])
 
+        pred_np = preds.detach().cpu().numpy()
+        target_np = targets.detach().cpu().numpy()
+        for pred_sample, target_sample in zip(pred_np, target_np):
+            pred_bool = pred_sample[0].astype(bool)
+            target_bool = target_sample[0].astype(bool)
+            tp_sample = float(np.logical_and(pred_bool, target_bool).sum())
+            fp_sample = float(np.logical_and(pred_bool, np.logical_not(target_bool)).sum())
+            fn_sample = float(np.logical_and(np.logical_not(pred_bool), target_bool).sum())
+            self.dice_values.append(_safe_divide(2.0 * tp_sample, 2.0 * tp_sample + fp_sample + fn_sample))
+            self.iou_values.append(_safe_divide(tp_sample, tp_sample + fp_sample + fn_sample))
+
         if self.compute_hd95:
-            pred_np = preds.detach().cpu().numpy()
-            target_np = targets.detach().cpu().numpy()
             for pred_sample, target_sample in zip(pred_np, target_np):
                 self.hd95_values.append(hd95_score(pred_sample[0], target_sample[0]))
 
     def compute(self, distributed_state: DistributedState | None = None) -> dict[str, float]:
         counts = self.counts
         hd95_values = self.hd95_values
+        dice_values = self.dice_values
+        iou_values = self.iou_values
         if distributed_state is not None:
             counts = reduce_counts(counts, distributed_state)
             hd95_values = gather_objects(hd95_values, distributed_state)
+            dice_values = gather_objects(dice_values, distributed_state)
+            iou_values = gather_objects(iou_values, distributed_state)
 
         tp = counts["tp"]
         fp = counts["fp"]
         fn = counts["fn"]
         tn = counts["tn"]
-        dice = _safe_divide(2.0 * tp, 2.0 * tp + fp + fn)
-        iou = _safe_divide(tp, tp + fp + fn)
+        dice = float(np.mean(dice_values)) if dice_values else 0.0
+        iou = float(np.mean(iou_values)) if iou_values else 0.0
         precision = _safe_divide(tp, tp + fp)
         recall = _safe_divide(tp, tp + fn)
         accuracy = _safe_divide(tp + tn, tp + tn + fp + fn)

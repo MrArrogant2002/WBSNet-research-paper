@@ -21,16 +21,7 @@ class SampleRecord:
     sample_id: str
 
 
-def _list_files(path: Path, extensions: list[str]) -> dict[str, Path]:
-    files: dict[str, Path] = {}
-    for item in sorted(path.rglob("*")):
-        if item.is_file() and item.suffix.lower() in {ext.lower() for ext in extensions}:
-            files[item.stem] = item
-    return files
-
-
-def discover_samples(dataset_config: dict[str, Any]) -> list[SampleRecord]:
-    root = Path(dataset_config["root"])
+def _discover_samples_under(root: Path, dataset_config: dict[str, Any]) -> list[SampleRecord]:
     image_dir = root / dataset_config.get("image_dir", "images")
     mask_dir = root / dataset_config.get("mask_dir", "masks")
     if not image_dir.exists():
@@ -46,6 +37,19 @@ def discover_samples(dataset_config: dict[str, Any]) -> list[SampleRecord]:
         raise RuntimeError(f"No matching image/mask pairs found under {root}")
 
     return [SampleRecord(image_map[key], mask_map[key], key) for key in shared_keys]
+
+
+def _list_files(path: Path, extensions: list[str]) -> dict[str, Path]:
+    files: dict[str, Path] = {}
+    for item in sorted(path.rglob("*")):
+        if item.is_file() and item.suffix.lower() in {ext.lower() for ext in extensions}:
+            files[item.stem] = item
+    return files
+
+
+def discover_samples(dataset_config: dict[str, Any]) -> list[SampleRecord]:
+    root = Path(dataset_config["root"])
+    return _discover_samples_under(root, dataset_config)
 
 
 def _resolve_split_file(dataset_config: dict[str, Any], split: str) -> Path:
@@ -77,6 +81,10 @@ def split_samples(samples: list[SampleRecord], dataset_config: dict[str, Any], s
         return list(samples)
 
     strategy = dataset_config.get("split_strategy", "ratio")
+    if strategy == "pre_split_dirs":
+        root = Path(dataset_config["root"])
+        split_root = root / split
+        return _discover_samples_under(split_root, dataset_config)
     if strategy == "predefined":
         return _split_from_file(samples, dataset_config, split)
     if strategy != "ratio":
@@ -128,11 +136,16 @@ class BinarySegmentationDataset(Dataset):
 def _loader_kwargs(dataset_config: dict[str, Any]) -> dict[str, Any]:
     num_workers = int(dataset_config.get("num_workers", 4))
     persistent_workers = bool(dataset_config.get("persistent_workers", True))
-    return {
+    loader_kwargs = {
         "num_workers": num_workers,
         "pin_memory": bool(dataset_config.get("pin_memory", True)),
         "persistent_workers": persistent_workers if num_workers > 0 else False,
     }
+    if num_workers > 0 and "prefetch_factor" in dataset_config:
+        prefetch_factor = int(dataset_config["prefetch_factor"])
+        if prefetch_factor > 0:
+            loader_kwargs["prefetch_factor"] = prefetch_factor
+    return loader_kwargs
 
 
 def _build_loader(

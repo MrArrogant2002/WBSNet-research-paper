@@ -56,10 +56,23 @@ python scripts/significance_tests.py --root outputs --output outputs/significanc
 python scripts/model_complexity.py --output outputs/model_complexity
 ```
 
+### Slurm (if the host scheduler is available)
+```bash
+sbatch scripts/slurm_train.sh configs/kvasir_wbsnet.yaml
+```
+
+### Paper qualitative figures
+```bash
+python scripts/make_paper_figures.py --input-dir outputs/.../predictions --limit 8 --columns 2
+```
+
 ### Build the paper PDF
 ```bash
 cd paper && make
 ```
+
+### Tests
+There is no automated test suite in this repo. `scripts/verify_repo.py` is the closest equivalent — it performs structural checks plus optional runtime smoke checks when `torch` is importable. Do not fabricate `pytest`/`unittest` commands.
 
 ---
 
@@ -117,6 +130,17 @@ Key model knobs: `model.use_wavelet`, `model.use_lfsa`, `model.use_hfba`, `model
 
 `variant_name_from_config()` in `wbsnet/models/__init__.py` infers variant ID from config flags.
 
+### Baseline and generalization configs (outside A1–A7)
+
+| Config | Purpose |
+|--------|---------|
+| `kvasir_unet_baseline.yaml`, `clinicdb_unet_baseline.yaml`, `isic2018_unet_baseline.yaml` | Vanilla ResNet-34 U-Net baselines for main-results tables |
+| `clinicdb_wbsnet.yaml`, `isic2018_wbsnet.yaml` | Full WBSNet on CVC-ClinicDB and ISIC2018 |
+| `kvasir_colondb_generalization.yaml` | Kvasir-trained checkpoint evaluated on full CVC-ColonDB |
+| `kvasir_colondb_generalization_baseline.yaml` | Baseline U-Net counterpart for the same generalization protocol |
+
+For generalization runs, evaluate with `--split all` so every CVC-ColonDB sample is scored (the config does not define an internal train/val/test split for it).
+
 ### Data pipeline
 
 `wbsnet/data/datasets.py` — `discover_samples()` pairs images and masks by **stem name**. Supports `split_strategy: ratio` (random) or `split_strategy: predefined` (from text files). Dataset classes: `PolyDataset` (Kvasir/CVC), `ISICDataset` (`wbsnet/data/isic_dataset.py`), `PolyDataset` (`wbsnet/data/polyp_dataset.py`). `build_dataloaders()` in `wbsnet/data/__init__.py` dispatches by `dataset.name`.
@@ -137,7 +161,7 @@ Key model knobs: `model.use_wavelet`, `model.use_lfsa`, `model.use_hfba`, `model
 
 ### W&B logging
 
-`wbsnet/utils/logger.py` — `ExperimentLogger`. Accepts both `WANDB_API_KEY` and legacy `WAND_API_KEY` (auto-remapped). Disable with `runtime.wandb.mode=offline` or `runtime.wandb.enabled=false`.
+`wbsnet/utils/logger.py` — `ExperimentLogger`. Accepts both `WANDB_API_KEY` and legacy `WAND_API_KEY` (auto-remapped) and loads them from a repo-root `.env` if present. Disable with `runtime.wandb.mode=offline` or `runtime.wandb.enabled=false`.
 
 ### Run outputs
 
