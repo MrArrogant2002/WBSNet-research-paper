@@ -2,11 +2,28 @@
 
 Wavelet Boundary Skip Network for medical image segmentation.
 
-This repository contains three related but intentionally separate deliverables:
+This repository contains four related but intentionally separate deliverables:
 
 - A local and DGX-friendly PyTorch codebase driven by YAML configs and the CLI entry points `train.py`, `evaluate.py`, and `predict.py`.
 - A Kaggle-first research notebook, [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb), designed for constrained notebook storage and session limits.
+- A Google Colab paper-run notebook, [`WBSNet_Colab.ipynb`](WBSNet_Colab.ipynb), that drives the full Option-A paper pipeline via [`scripts/run_paper_optionA.py`](scripts/run_paper_optionA.py).
 - The paper sources in [`paper/`](paper/) and supporting figures in [`diagrams/`](diagrams/).
+
+## Quick start: Option-A paper run on Colab
+
+The fastest way to reproduce the paper results end-to-end:
+
+1. Open [`WBSNet_Colab.ipynb`](WBSNet_Colab.ipynb) in Colab (Pro+ A100 recommended; Pro L4 also works).
+2. Place `WBSNet_Dataset/{kvasir,cvc_clinicdb,cvc_colondb,isic2018}` on Google Drive.
+3. Run cells top-to-bottom. The headline command in cell 8 is:
+
+   ```bash
+   python3 scripts/run_paper_optionA.py \
+       --seeds 3407 \
+       --override train.epochs=150 runtime.wandb.mode=offline
+   ```
+
+   This trains 7 ablation variants on Kvasir + full WBSNet on ClinicDB & ISIC2018 + 3 U-Net baselines, then runs the Kvasir → CVC-ColonDB generalization eval, then aggregates everything. Re-running with additional seeds skips already-completed runs (idempotent).
 
 ## Workflow Split
 
@@ -28,13 +45,14 @@ Important:
 | Path | Purpose |
 | --- | --- |
 | [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb) | Full Kaggle notebook workflow for single runs, paper sweeps, evaluation, exports, and paper tables |
+| [`WBSNet_Colab.ipynb`](WBSNet_Colab.ipynb) | Google Colab driver for the Option-A paper run (drives `scripts/run_paper_optionA.py`) |
 | [`data_preprocessing.ipynb`](data_preprocessing.ipynb) | Dataset preparation notebook |
 | [`train.py`](train.py) | Local / DGX training entry point |
 | [`evaluate.py`](evaluate.py) | Evaluate a trained checkpoint and export metrics / predictions |
 | [`predict.py`](predict.py) | Save qualitative predictions from a trained checkpoint |
 | [`aggregate_results.py`](aggregate_results.py) | Aggregate run summaries and evaluation outputs |
 | [`configs/`](configs/) | YAML configs for the local / DGX Python pipeline |
-| [`scripts/`](scripts/) | Helper scripts for verification, DGX launch, ablations, figures, significance tests, and complexity |
+| [`scripts/`](scripts/) | Helper scripts for verification, DGX launch, ablations, paper-run driver (`run_paper_optionA.py`), figures, significance tests, and complexity |
 | [`wbsnet/`](wbsnet/) | Package code for models, losses, metrics, data loading, logging, and utilities |
 | [`paper/`](paper/) | Manuscript sources |
 | [`docs/`](docs/) | Project notes such as hardware planning |
@@ -50,7 +68,7 @@ The paper workflow uses seven named variants:
 | `A3` | LFSA only | [`configs/ablation_lfsa_only.yaml`](configs/ablation_lfsa_only.yaml) |
 | `A4` | HFBA only | [`configs/ablation_hfba_only.yaml`](configs/ablation_hfba_only.yaml) |
 | `A5` | No boundary supervision | [`configs/ablation_no_boundary_supervision.yaml`](configs/ablation_no_boundary_supervision.yaml) |
-| `A6` | No wavelet attention | [`configs/ablation_no_wavelet_attention.yaml`](configs/ablation_no_wavelet_attention.yaml) |
+| `A6` | No wavelet (raw-attention skip) | [`configs/ablation_no_wavelet.yaml`](configs/ablation_no_wavelet.yaml) |
 | `A7` | `db2` wavelet variant | [`configs/ablation_db2_wavelet.yaml`](configs/ablation_db2_wavelet.yaml) |
 
 Dataset-specific full-model and baseline configs are also provided for Kvasir, CVC-ClinicDB, ISIC2018, and Kvasir-to-ColonDB evaluation.
@@ -399,7 +417,7 @@ python train.py --config configs/kvasir_wbsnet.yaml --override dataset.split_str
 - [`configs/ablation_lfsa_only.yaml`](configs/ablation_lfsa_only.yaml)
 - [`configs/ablation_hfba_only.yaml`](configs/ablation_hfba_only.yaml)
 - [`configs/ablation_no_boundary_supervision.yaml`](configs/ablation_no_boundary_supervision.yaml)
-- [`configs/ablation_no_wavelet_attention.yaml`](configs/ablation_no_wavelet_attention.yaml)
+- [`configs/ablation_no_wavelet.yaml`](configs/ablation_no_wavelet.yaml)
 - [`configs/ablation_db2_wavelet.yaml`](configs/ablation_db2_wavelet.yaml)
 
 ### Optional constrained-environment script configs
