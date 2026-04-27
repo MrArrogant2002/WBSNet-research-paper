@@ -11,7 +11,7 @@ ABLATIONS = [
     "configs/ablation_lfsa_only.yaml",
     "configs/ablation_hfba_only.yaml",
     "configs/ablation_no_boundary_supervision.yaml",
-    "configs/ablation_no_wavelet_attention.yaml",
+    "configs/ablation_no_wavelet.yaml",
     "configs/ablation_db2_wavelet.yaml",
 ]
 

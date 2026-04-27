@@ -34,11 +34,20 @@ def _load_recursive(path: Path) -> dict[str, Any]:
     base_path = Path(base_config)
     if not base_path.is_absolute():
         candidate = (path.parent / base_path).resolve()
-        if candidate.exists():
-            base_path = candidate
-        else:
-            repo_candidate = (Path.cwd() / base_path).resolve()
-            base_path = repo_candidate
+        if not candidate.exists():
+            # Fallback: resolve from the project root (the directory containing the
+            # config file's nearest 'configs' ancestor). This keeps the historic
+            # behaviour of writing `base_config: configs/default.yaml` from any file.
+            project_root = path.parent
+            while project_root != project_root.parent and not (project_root / "configs").is_dir():
+                project_root = project_root.parent
+            candidate = (project_root / base_path).resolve()
+        if not candidate.exists():
+            raise FileNotFoundError(
+                f"base_config '{base_config}' referenced from {path} does not exist "
+                f"(tried {path.parent / base_path} and project-root fallback)."
+            )
+        base_path = candidate
     return _deep_merge(_load_recursive(base_path), data)
 
 

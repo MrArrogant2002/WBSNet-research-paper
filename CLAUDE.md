@@ -125,7 +125,7 @@ Key model knobs: `model.use_wavelet`, `model.use_lfsa`, `model.use_hfba`, `model
 | A3 | `ablation_lfsa_only.yaml` | Wavelet + LFSA, no HFBA/boundary |
 | A4 | `ablation_hfba_only.yaml` | Wavelet + HFBA, no LFSA |
 | A5 | `ablation_no_boundary_supervision.yaml` | Full WBSNet, boundary loss disabled |
-| A6 | `ablation_no_wavelet_attention.yaml` | LFSA+HFBA but no wavelet decomposition |
+| A6 | `ablation_no_wavelet.yaml` | LFSA+HFBA but no wavelet decomposition |
 | A7 | `ablation_db2_wavelet.yaml` | Full WBSNet with db2 wavelet |
 
 `variant_name_from_config()` in `wbsnet/models/__init__.py` infers variant ID from config flags.
