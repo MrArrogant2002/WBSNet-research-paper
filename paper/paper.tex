@@ -78,9 +78,9 @@ segmentation, deep learning, reproducibility.
 structures in clinical images is a foundational building block for
 computer-aided diagnosis, margin estimation, disease tracking, and surgical
 planning. In colonoscopy screening, accurate polyp segmentation supports
-adenoma detection and characterisation, influencing follow-up intervals and
-resection decisions. In dermoscopy, precise lesion delineation governs
-excision margins and malignancy scoring. The clinical utility of an
+adenoma detection and characterization, influencing follow-up intervals and
+resection decisions~\cite{TODO:clinicalcolo}. In dermoscopy, precise lesion delineation governs
+excision margins and malignancy scoring~\cite{TODO:clinicalderm}. The clinical utility of an
 automated segmentor is therefore tightly coupled to \emph{how faithfully it
 reconstructs the boundary}, not merely how often it covers the lesion
 interior.
@@ -90,7 +90,7 @@ segmentation for most of a decade because its skip connections recover
 spatial detail lost to encoder downsampling. Subsequent work has explored
 deeper encoders (ResNet~\cite{he2016resnet}, EfficientNet), attention
 gates~\cite{oktay2018attnunet}, denser
-skips~\cite{zhou2018unetpp,alom2022r2upp}, Transformer
+skips~\cite{zhou2019unetpp,alom2022r2upp}, Transformer
 encoders~\cite{chen2021transunet,cao2021swinunet}, and state-space
 backbones~\cite{ruan2024vmunet,ma2024umamba}. Yet the skip connection itself
 has changed only modestly. In the canonical U-Net a skip is a tensor-wise
@@ -111,13 +111,13 @@ low-level content of the skip rather than using it.
 resolution; high-frequency content that encodes organ or lesion boundaries
 is attenuated by the low-pass filtering implicit in strided convolutions
 and max-pools~\cite{zhang2019makingshiftinvariant}. The skip connection
-passes whatever survives, but makes no effort to \emph{emphasise} the
+passes whatever survives, but makes no effort to \emph{emphasize} the
 boundary. For polyps and dermoscopic lesions the boundary is
 clinically the most important structure --- it determines extent of disease
 and margin of resection. A network that averages over a blurred boundary
 costs real clinical value.
 
-A growing literature tries to repair skip connections with Transformer
+Recent methods address skip-connection limitations through Transformer
 attention~\cite{wang2024udtransnet,chen2021transunet}, Mamba state-space
 blocks~\cite{wu2025skvmpp,ruan2024vmunet}, routed mixtures of
 experts~\cite{tamosc2025}, or dense cascades~\cite{alom2022r2upp}. Other
@@ -198,9 +198,9 @@ invariance proof, and the reproducibility checklist.
 \subsection{Skip Connection Design}
 \label{sec:related:skip}
 
-U-Net++~\cite{zhou2018unetpp}'s nested dense skips and Attention
-U-Net~\cite{oktay2018attnunet}'s gated skips were the first to argue that
-the skip connection is a design surface, not an identity. U-Net
+U-Net++~\cite{zhou2019unetpp}'s nested dense skips and Attention
+U-Net~\cite{oktay2018attnunet}'s gated skips were among the first to treat
+the skip connection as a design surface rather than an identity map. U-Net
 v2~\cite{peng2023unetv2} uses a Hadamard-product scheme to infuse
 cross-level semantic and detail information; UDTransNet~\cite{wang2024udtransnet}
 replaces the skip with a Dual Attention Transformer; SK-VM++~\cite{wu2025skvmpp}
@@ -228,7 +228,7 @@ MFR-UNet~\cite{mfrunet2025}, SFFNet~\cite{sffnet2024},
 WaveFormer~\cite{waveformer2023}, and EW-ViT~\cite{ewvit2025} put wavelets
 in the encoder or inside a Transformer's self-attention, not in the skip.
 WFE~\cite{wfe2023} injects multi-scale wavelet features into the backbone.
-FFTNet-style methods~\cite{rao2021fnet} operate globally with the Fourier
+FFTNet-style methods~\cite{rao2022fnet} operate globally with the Fourier
 transform but lack directional detail sub-bands. Our WBS module places the
 wavelet \emph{inside the skip}, preserves high-frequency content under
 boundary supervision rather than discarding it, and does not require a
@@ -249,10 +249,10 @@ a boundary-aware pyramid module; SkinMamba~\cite{skinmamba2024} binds a
 Frequency Boundary Guided Module to a Mamba backbone.
 BoundaryLoss~\cite{kervadec2019boundaryloss} proposes a distance-map
 objective orthogonal to our Sobel-target BCE formulation. All of these
-split the ``wavelet'' and ``boundary'' functions across separate modules.
+split the ``wavelet'' and ``boundary'' functions across separate modules;
 WBSNet unifies them in a single skip-path module and supervises the
-boundary signal at four scales from one Sobel-derived target. A summary of
-positioning is in Table~\ref{tab:positioning}.
+boundary signal at four scales from one Sobel-derived target
+(Table~\ref{tab:positioning}).
 
 \begin{table*}[!t]
 \caption{Positioning of WBSNet in a matrix of (i) where the skip lives,
@@ -268,7 +268,7 @@ pathway between encoder and decoder; otherwise it is in the encoder
 Method & Where & Frequency & Boundary sup. & Unified? & Extra params \\
 \midrule
 U-Net~\cite{ronneberger2015unet}              & In-skip & ---            & ---       & ---        & 0 \\
-U-Net++~\cite{zhou2018unetpp}                  & In-skip & ---            & ---       & ---        & high (dense) \\
+U-Net++~\cite{zhou2019unetpp}                  & In-skip & ---            & ---       & ---        & high (dense) \\
 Attention U-Net~\cite{oktay2018attnunet}       & In-skip & ---            & ---       & ---        & low \\
 U-Net v2~\cite{peng2023unetv2}                 & In-skip & ---            & ---       & ---        & low \\
 UDTransNet~\cite{wang2024udtransnet}           & In-skip & ---            & ---       & ---        & high (Trans.) \\
@@ -398,11 +398,11 @@ recalibrate it with a Squeeze-and-Excitation style
 block~\cite{hu2018senet}:
 \begin{align}
 \mathbf{z} &= \mathrm{GAP}(\mathbf{LL})\in\mathbb{R}^{C\times 1\times 1},\\
-\mathbf{w} &= \sigma\bigl(W_{\uparrow}\,\mathrm{ReLU}(W_{\downarrow}\mathbf{z})\bigr),\\
+\mathbf{w} &= \sigma\bigl(\mathbf{W}_{\uparrow}\,\mathrm{ReLU}(\mathbf{W}_{\downarrow}\mathbf{z})\bigr),\\
 \widetilde{\mathbf{LL}} &= \mathbf{w}\odot\mathbf{LL},
 \end{align}
-where $W_{\downarrow}\!\in\!\mathbb{R}^{C/r\times C}$,
-$W_{\uparrow}\!\in\!\mathbb{R}^{C\times C/r}$, $r\!=\!16$, and $\sigma$ is
+where $\mathbf{W}_{\downarrow}\!\in\!\mathbb{R}^{C/r\times C}$,
+$\mathbf{W}_{\uparrow}\!\in\!\mathbb{R}^{C\times C/r}$, $r\!=\!16$, and $\sigma$ is
 the sigmoid. LFSA's parameter count is $2C^{2}/r$, which is negligible
 compared to the encoder and decoder.
 
@@ -419,7 +419,7 @@ H/2\times W/2}$. A depthwise-separable block reduces them to $C$ channels:
 followed by a $1{\times}1$ convolution that predicts a boundary logit map
 and gates the merged high-frequency stream with its sigmoid:
 \begin{align}
-\mathbf{M}_{\text{bnd}} &= W_{\text{b}}\,\mathbf{H}_{\text{red}}\in\mathbb{R}^{1\times H/2\times W/2},\\
+\mathbf{M}_{\text{bnd}} &= \mathbf{W}_{\text{b}}\,\mathbf{H}_{\text{red}}\in\mathbb{R}^{1\times H/2\times W/2},\\
 \widetilde{\mathbf{H}} &= \sigma(\mathbf{M}_{\text{bnd}})\odot\mathbf{H}_{\text{red}}.
 \end{align}
 We reuse the single attended stream for all three IDWT high-frequency
@@ -444,6 +444,7 @@ zero attention (identity LFSA and HFBA heads set to pass-through) the
 composition $\mathrm{IDWT}\circ\mathrm{DWT}$ is the identity, a property
 used as a sanity check during implementation
 (Appendix~\ref{app:reconstruction}).
+Algorithm~\ref{alg:wbs} provides pseudocode for the complete WBS forward pass.
 
 \begin{algorithm}[!t]
 \caption{WBS forward at skip level $k$.}
@@ -484,6 +485,7 @@ standard BCE + soft-Dice combination:
 \mathcal{L}_{\text{dice}} &= 1 - \frac{2\sum_p \hat{y}_p y_p + \varepsilon}{\sum_p \hat{y}_p + \sum_p y_p + \varepsilon},\\
 \mathcal{L}_{\text{seg}} &= \mathcal{L}_{\text{bce}} + \mathcal{L}_{\text{dice}}.
 \end{align}
+where $\Omega$ denotes the set of all spatial positions and $\varepsilon\!=\!10^{-6}$ is a numerical smoothing constant.
 
 \subsubsection{Boundary term}
 
@@ -567,9 +569,9 @@ clinical domains (colonoscopy polyps and dermoscopic skin lesions):
         test dermoscopic images with lesion masks (task 1).
 \end{itemize}
 
-All images are resized to $352\!\times\!352$ and normalised with ImageNet
-statistics. Masks are binarised at $0.5$. Dataset sizes, domain
-characteristics, and class imbalance (foreground ratio) are summarised in
+All images are resized to $352\!\times\!352$ and normalized with ImageNet
+statistics. Masks are binarized at $0.5$. Dataset sizes, domain
+characteristics, and class imbalance (foreground ratio) are summarized in
 Table~\ref{tab:datasets}.
 
 \begin{table}[!t]
@@ -594,7 +596,7 @@ ISIC 2018      & 2594 & 259 & 1000 & 21.7 \\
 \label{sec:experiments:baselines}
 
 We compare against:
-U-Net~\cite{ronneberger2015unet} and U-Net++~\cite{zhou2018unetpp} (dense
+U-Net~\cite{ronneberger2015unet} and U-Net++~\cite{zhou2019unetpp} (dense
 skips), Attention U-Net~\cite{oktay2018attnunet}, U-Net
 v2~\cite{peng2023unetv2}, TransUNet~\cite{chen2021transunet},
 Swin-UNet~\cite{cao2021swinunet}, PraNet~\cite{fan2020pranet},
@@ -706,9 +708,9 @@ U-Mamba\,$^\dagger$ & \underline{0.911}\tiny$\pm$.004 & \underline{0.849}\tiny$\
 \end{table*}
 
 Table~\ref{tab:main} summarises the main comparison. WBSNet outperforms
-the strongest pure-CNN baseline (MEGANet) by $+1.1$ Dice and $-1.3$
-$\mathrm{HD}_{95}$ on Kvasir-SEG, $+0.9$ / $-1.1$ on CVC-ClinicDB, and
-$+2.5$ / $-1.6$ on ISIC 2018; it also matches or exceeds the
+the strongest pure-CNN baseline (MEGANet) by $+0.011$ Dice and $-1.3$
+$\mathrm{HD}_{95}$ on Kvasir-SEG, $+0.009$ / $-1.1$ on CVC-ClinicDB, and
+$+0.025$ / $-1.6$ on ISIC~2018; it also matches or exceeds the
 Transformer-based TransUNet and the Mamba-based U-Mamba and VM-UNet on
 every dataset, despite using only a ResNet-34 encoder. The improvement is
 \emph{largest} in $\mathrm{HD}_{95}$, which is the metric most directly
@@ -895,6 +897,7 @@ $p\!<\!10^{-3}$, ISIC 2018) and over U-Mamba on $\mathrm{HD}_{95}$
 ($p\!<\!10^{-3}$ on all three datasets). See
 \texttt{scripts/significance\_tests.py}. A full table of pairwise
 $p$-values is provided in Appendix~\ref{app:pvalues}.
+Per-seed metric breakdowns are listed in Table~\ref{tab:perseed} (Appendix~\ref{app:perseed}).
 
 \subsection{Per-Class and Per-Size Breakdown}
 \label{sec:results:persize}
@@ -943,7 +946,7 @@ high-frequency response rather than diffused noise.
 \begin{figure}[!t]
   \centering
   \includegraphics[width=\linewidth]{figures/subband_visualization.png}
-  \caption{Wavelet sub-band and attention visualisation at the first WBS
+  \caption{Wavelet sub-band and attention visualization at the first WBS
   module for a Kvasir-SEG sample. From left: input, mask, LL, LH, HL, HH,
   HFBA boundary logits $\mathbf{M}_{\text{bnd}}^{(1)}$ after sigmoid.}
   \label{fig:subbands}
@@ -1017,9 +1020,9 @@ content that standard skips lose.
 For endoscopic and dermoscopic decision support, boundary accuracy is the
 metric that most directly maps to clinical value: it determines
 margin-of-resection estimates, biopsy recommendations, and disease
-extent. WBSNet's $\sim\!30\%$ relative improvement in $\mathrm{HD}_{95}$
+extent~\cite{TODO:clinicalcolo,TODO:clinicalderm}. WBSNet's $\sim\!30\%$ relative improvement in $\mathrm{HD}_{95}$
 over a vanilla U-Net is therefore clinically meaningful even when the
-Dice improvement is a few percentage points. The $12\%$ latency overhead
+absolute Dice improvement is 0.011--0.025. The $12\%$ latency overhead
 over the baseline U-Net is negligible for desktop workstations used in
 endoscopy suites and remains within the real-time budget for 30-fps video.
 For interactive tools such as SAM-style refinement, WBSNet's boundary
@@ -1109,7 +1112,7 @@ Promising directions include:
         test-time plug-in on top of SAM or MedSAM for interactive margin
         refinement.
   \item \textbf{Semi-supervised WBSNet.} Pairing the wavelet skip with
-        consistency regularisation as in~\cite{dai2025fmddc}.
+        consistency regularization as in~\cite{dai2025fmddc}.
   \item \textbf{3D extension.} A 3D separable Haar DWT fits naturally into
         volumetric U-Net encoders for CT/MRI organ segmentation.
 \end{enumerate}
