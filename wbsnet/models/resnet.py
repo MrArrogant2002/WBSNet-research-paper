@@ -11,14 +11,25 @@ class BasicBlock(nn.Module):
 
     def __init__(self, in_channels: int, out_channels: int, stride: int = 1) -> None:
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            bias=False,
+        )
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, padding=1, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(out_channels)
         if stride != 1 or in_channels != out_channels:
             self.downsample = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.Conv2d(
+                    in_channels, out_channels, kernel_size=1, stride=stride, bias=False
+                ),
                 nn.BatchNorm2d(out_channels),
             )
         else:
@@ -38,7 +49,17 @@ class ResNetEncoder(nn.Module):
         self.stem = nn.Sequential(
             OrderedDict(
                 [
-                    ("conv1", nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)),
+                    (
+                        "conv1",
+                        nn.Conv2d(
+                            in_channels,
+                            64,
+                            kernel_size=7,
+                            stride=2,
+                            padding=3,
+                            bias=False,
+                        ),
+                    ),
                     ("bn1", nn.BatchNorm2d(64)),
                     ("relu", nn.ReLU(inplace=True)),
                 ]
@@ -51,13 +72,17 @@ class ResNetEncoder(nn.Module):
         self.layer4 = self._make_layer(256, 512, blocks=3, stride=2)
 
     @staticmethod
-    def _make_layer(in_channels: int, out_channels: int, blocks: int, stride: int) -> nn.Sequential:
+    def _make_layer(
+        in_channels: int, out_channels: int, blocks: int, stride: int
+    ) -> nn.Sequential:
         layers = [BasicBlock(in_channels, out_channels, stride=stride)]
         for _ in range(1, blocks):
             layers.append(BasicBlock(out_channels, out_channels, stride=1))
         return nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         stem = self.stem(x)
         x = self.maxpool(stem)
         layer1 = self.layer1(x)
@@ -67,7 +92,10 @@ class ResNetEncoder(nn.Module):
         return stem, layer1, layer2, layer3, layer4
 
     def load_checkpoint(self, checkpoint_path: str) -> None:
-        state = torch.load(checkpoint_path, map_location="cpu")
+        # weights_only=False is explicit: this loader strips a "state_dict" wrapper
+        # produced by save_checkpoint, which pickles config metadata alongside the
+        # tensors. Only point this at checkpoints produced by trusted sources.
+        state = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         if "state_dict" in state:
             state = state["state_dict"]
         cleaned = {}
@@ -99,7 +127,8 @@ class ResNetEncoder(nn.Module):
 
         current = self.state_dict()
         compatible = {
-            k: v for k, v in remapped.items()
+            k: v
+            for k, v in remapped.items()
             if k in current and tuple(v.shape) == tuple(current[k].shape)
         }
         self.load_state_dict(compatible, strict=False)
