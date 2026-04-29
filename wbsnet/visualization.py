@@ -41,6 +41,19 @@ def _tile_with_title(tile: np.ndarray, title: str, title_height: int = 28) -> np
     return np.asarray(image)
 
 
+def _hstack_with_padding(tiles: list[np.ndarray]) -> np.ndarray:
+    max_height = max(tile.shape[0] for tile in tiles)
+    padded_tiles = []
+    for tile in tiles:
+        if tile.shape[0] == max_height:
+            padded_tiles.append(tile)
+            continue
+        canvas = np.full((max_height, tile.shape[1], 3), 255, dtype=np.uint8)
+        canvas[: tile.shape[0], :, :] = tile
+        padded_tiles.append(canvas)
+    return np.concatenate(padded_tiles, axis=1)
+
+
 def _find_focus_box(target_np: np.ndarray, pred_np: np.ndarray, min_size: int = 96, padding: int = 24) -> tuple[int, int, int, int]:
     target_mask = target_np > 0
     pred_mask = pred_np > 0
@@ -114,15 +127,14 @@ def create_prediction_visuals(
         "prediction": pred_np,
         "overlay": overlay_np,
         "focus_box": focus_box,
-        "paper_panel": np.concatenate(
+        "paper_panel": _hstack_with_padding(
             [
                 _tile_with_title(image_box, "Image"),
                 _tile_with_title(target_box, "Ground Truth"),
                 _tile_with_title(pred_box, "Prediction"),
                 _tile_with_title(overlay_box, "Overlay"),
                 _tile_with_title(zoom_panel, "Boundary Zoom"),
-            ],
-            axis=1,
+            ]
         ),
     }
 

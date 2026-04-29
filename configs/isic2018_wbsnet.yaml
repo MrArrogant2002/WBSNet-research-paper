@@ -15,4 +15,4 @@ train:
   batch_size: 16
 
 evaluation:
-  compute_hd95: true
+  compute_hd95: false

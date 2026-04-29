@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import compileall
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -29,8 +30,10 @@ def runtime_smoke(root: Path) -> list[str]:
         sys.path.insert(0, str(root))
 
     from wbsnet.config import load_config
+    from wbsnet.engine import build_optimizer, load_checkpoint, run_epoch, save_checkpoint
     from wbsnet.losses import total_loss
     from wbsnet.models import build_model
+    from wbsnet.utils.distributed import DistributedState
 
     errors: list[str] = []
     for path in sorted((root / "configs").glob("*.yaml")):
@@ -53,6 +56,64 @@ def runtime_smoke(root: Path) -> list[str]:
                 total_loss(output, masks, float(config["train"].get("boundary_loss_weight", 0.5)))
         except Exception as exc:
             errors.append(f"{path}: {exc}")
+
+    try:
+        class TinySegmentationDataset(torch.utils.data.Dataset):
+            def __len__(self) -> int:
+                return 2
+
+            def __getitem__(self, index: int) -> dict[str, object]:
+                image = torch.randn(3, 64, 64)
+                mask = (torch.rand(1, 64, 64) > 0.5).float()
+                return {"image": image, "mask": mask, "sample_id": f"tiny_{index}"}
+
+        config = load_config(root / "configs/kvasir_wbsnet.yaml")
+        config["model"]["encoder_pretrained"] = False
+        config["model"]["encoder_pretrained_checkpoint"] = None
+        config["train"]["epochs"] = 1
+        config["train"]["batch_size"] = 2
+        config["train"]["amp"] = False
+        config["evaluation"]["compute_hd95"] = False
+        config["runtime"]["wandb"]["enabled"] = False
+        dataset = TinySegmentationDataset()
+        loader = torch.utils.data.DataLoader(dataset, batch_size=2)
+        state = DistributedState(enabled=False, rank=0, world_size=1, local_rank=0)
+        device = torch.device("cpu")
+        model = build_model(config).to(device)
+        optimizer, scheduler = build_optimizer(model, config)
+        scaler = torch.amp.GradScaler(enabled=False)
+        train_metrics = run_epoch(
+            model=model,
+            loader=loader,
+            optimizer=optimizer,
+            scaler=scaler,
+            device=device,
+            config=config,
+            distributed_state=state,
+            training=True,
+            epoch=0,
+        )
+        val_metrics = run_epoch(
+            model=model,
+            loader=loader,
+            optimizer=None,
+            scaler=scaler,
+            device=device,
+            config=config,
+            distributed_state=state,
+            training=False,
+            epoch=0,
+        )
+        scheduler.step()
+        if "dice" not in train_metrics or "dice" not in val_metrics:
+            raise RuntimeError("Smoke run did not produce expected metrics.")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint_path = Path(tmpdir) / "smoke.pt"
+            save_checkpoint(checkpoint_path, model, optimizer, scheduler, scaler, 0, val_metrics["dice"], config)
+            reloaded = build_model(config).to(device)
+            load_checkpoint(checkpoint_path, reloaded, map_location=device)
+    except Exception as exc:
+        errors.append(f"train/val/checkpoint smoke: {exc}")
     return errors
 
 

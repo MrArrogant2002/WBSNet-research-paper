@@ -15,6 +15,7 @@ class ExperimentLogger:
         enabled: bool,
         rank: int,
         open_csv: bool = True,
+        append_csv: bool = False,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.rank = rank
@@ -26,7 +27,12 @@ class ExperimentLogger:
         if rank == 0 and (open_csv or enabled):
             ensure_dir(self.output_dir)
         if rank == 0 and open_csv:
-            self.csv_file = self.csv_path.open("w", encoding="utf-8", newline="")
+            file_exists = append_csv and self.csv_path.exists() and self.csv_path.stat().st_size > 0
+            mode = "a" if append_csv else "w"
+            self.csv_file = self.csv_path.open(mode, encoding="utf-8", newline="")
+            self._csv_has_header = file_exists
+        else:
+            self._csv_has_header = False
         if enabled and rank == 0:
             self._init_wandb(config)
 
@@ -63,7 +69,8 @@ class ExperimentLogger:
         row.update(flatten_dict(metrics))
         if self.writer is None and self.csv_file is not None:
             self.writer = csv.DictWriter(self.csv_file, fieldnames=list(row.keys()))
-            self.writer.writeheader()
+            if not self._csv_has_header:
+                self.writer.writeheader()
 
         if self.writer is not None:
             self.writer.writerow(row)

@@ -2,11 +2,10 @@
 
 Wavelet Boundary Skip Network for medical image segmentation.
 
-This repository contains four related but intentionally separate deliverables:
+This repository contains three related deliverables:
 
-- A local and DGX-friendly PyTorch codebase driven by YAML configs and the CLI entry points `train.py`, `evaluate.py`, and `predict.py`.
-- A Kaggle-first research notebook, [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb), designed for constrained notebook storage and session limits.
-- A Google Colab paper-run notebook, [`WBSNet_Colab.ipynb`](WBSNet_Colab.ipynb), that drives the full Option-A paper pipeline via [`scripts/run_paper_optionA.py`](scripts/run_paper_optionA.py).
+- A PyTorch package driven by YAML configs and the CLI entry points `train.py`, `evaluate.py`, and `predict.py`.
+- A Google Colab A100 control notebook, [`WBSNet_Colab.ipynb`](WBSNet_Colab.ipynb), that mounts Drive and launches the `.py` pipeline via [`scripts/run_paper_optionA.py`](scripts/run_paper_optionA.py).
 - The paper sources in [`paper/`](paper/) and supporting figures in [`diagrams/`](diagrams/).
 
 ## Quick start: Option-A paper run on Colab
@@ -20,38 +19,43 @@ The fastest way to reproduce the paper results end-to-end:
    ```bash
    python3 scripts/run_paper_optionA.py \
        --seeds 3407 \
-       --override train.epochs=150 runtime.wandb.mode=offline
+       --override train.epochs=150 train.batch_size=16 \
+                  dataset.split_strategy=pre_split_dirs \
+                  dataset.num_workers=2 dataset.prefetch_factor=2 \
+                  train.save_every=5 runtime.wandb.mode=offline \
+                  evaluation.max_visualizations=8
    ```
 
    This trains 7 ablation variants on Kvasir + full WBSNet on ClinicDB & ISIC2018 + 3 U-Net baselines, then runs the Kvasir → CVC-ColonDB generalization eval, then aggregates everything. Re-running with additional seeds skips already-completed runs (idempotent).
 
-## Workflow Split
+## Execution Model
 
-This repo supports two execution paths. They are related, but they are not meant to be treated as the same runtime.
+This repo is prepared for the script-based Colab A100 workflow. Colab is used only as the control surface for cloning the repo, mounting Drive, installing dependencies, and launching commands. Training, evaluation, prediction export, aggregation, significance tests, and complexity checks run through versioned Python files.
 
-| Workflow | Primary file(s) | Best for | Config source | Data layout | Output style |
-| --- | --- | --- | --- | --- | --- |
-| Kaggle notebook | [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb) | Kaggle sessions, paper sweeps, constrained output storage | Notebook config cells | Processed `WBSNet_Dataset/<dataset>/<split>/...` layout | Lean, storage-aware, notebook-managed |
-| Local / DGX Python pipeline | [`train.py`](train.py), [`evaluate.py`](evaluate.py), [`predict.py`](predict.py) | Workstations, servers, DGX, repeatable script runs | `configs/*.yaml` | Raw dataset folders or split-driven layouts | Richer artifacts under `outputs/` |
+| Layer | Primary file(s) | Purpose |
+| --- | --- | --- |
+| Colab control panel | [`WBSNet_Colab.ipynb`](WBSNet_Colab.ipynb) | Mount Drive, link the processed dataset, run shell commands |
+| Training/evaluation code | [`train.py`](train.py), [`evaluate.py`](evaluate.py), [`predict.py`](predict.py) | Reproducible experiment execution from YAML configs |
+| Paper pipeline | [`scripts/run_paper_optionA.py`](scripts/run_paper_optionA.py) | Staged ablations, main results, baselines, generalization, aggregation |
+| Package code | [`wbsnet/`](wbsnet/) | Models, losses, metrics, data loading, logging, utilities |
 
 Important:
 
-- The Kaggle notebook is self-contained and does not read the YAML configs in `configs/`.
-- The local `.py` pipeline is the main script-based training path and should be treated as the default for workstation or DGX runs.
-- The notebook and the `.py` pipeline share the same research model family and metrics, but their runtime policies are intentionally different because Kaggle has tighter storage and session limits.
+- Do not use a training notebook as the experiment source of truth.
+- Keep experiment claims tied to artifacts under `outputs/`.
+- Use `dataset.split_strategy=pre_split_dirs` for the processed Google Drive dataset layout.
 
 ## What The Project Contains
 
 | Path | Purpose |
 | --- | --- |
-| [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb) | Full Kaggle notebook workflow for single runs, paper sweeps, evaluation, exports, and paper tables |
 | [`WBSNet_Colab.ipynb`](WBSNet_Colab.ipynb) | Google Colab driver for the Option-A paper run (drives `scripts/run_paper_optionA.py`) |
 | [`data_preprocessing.ipynb`](data_preprocessing.ipynb) | Dataset preparation notebook |
-| [`train.py`](train.py) | Local / DGX training entry point |
+| [`train.py`](train.py) | Python training entry point |
 | [`evaluate.py`](evaluate.py) | Evaluate a trained checkpoint and export metrics / predictions |
 | [`predict.py`](predict.py) | Save qualitative predictions from a trained checkpoint |
 | [`aggregate_results.py`](aggregate_results.py) | Aggregate run summaries and evaluation outputs |
-| [`configs/`](configs/) | YAML configs for the local / DGX Python pipeline |
+| [`configs/`](configs/) | YAML configs for the Python pipeline |
 | [`scripts/`](scripts/) | Helper scripts for verification, DGX launch, ablations, paper-run driver (`run_paper_optionA.py`), figures, significance tests, and complexity |
 | [`wbsnet/`](wbsnet/) | Package code for models, losses, metrics, data loading, logging, and utilities |
 | [`paper/`](paper/) | Manuscript sources |
@@ -75,7 +79,7 @@ Dataset-specific full-model and baseline configs are also provided for Kvasir, C
 
 ## Outputs
 
-### Local / DGX Python pipeline
+### Python pipeline
 
 The script-based pipeline writes into `outputs/` by default.
 
@@ -87,19 +91,8 @@ Typical run artifacts:
 - `checkpoints/best.pt`
 - `checkpoints/epoch_*.pt` when periodic checkpointing is enabled
 - `checkpoints/last.pt` when `train.save_last_checkpoint=true`
-- `evaluation/<dataset>.json`
+- `evaluation/<dataset>_<split>.json`
 - `predictions/` with masks, overlays, paper panels, and contact sheets
-
-### Kaggle notebook
-
-The notebook writes into `/kaggle/working/wbsnet_paper_runs` and is intentionally more conservative about storage:
-
-- lightweight best-checkpoint handling
-- no periodic checkpoint flood by default
-- reduced qualitative export pressure
-- W&B used for keeping metrics remotely
-
-If you are on Kaggle, treat the notebook as the primary interface and let it manage its own outputs.
 
 ## Hardware Guidance
 
@@ -107,7 +100,8 @@ Short version:
 
 - Local minimum: `1 x 12 GB GPU`, `16 GB RAM`, and enough free disk for checkpoints and predictions
 - Better local experience: `1 x 24 GB GPU`, `32 GB RAM`
-- Ideal for the full paper suite: DGX or another multi-GPU server
+- Ideal for the Colab workflow: A100 GPU with background execution for long runs
+- Ideal outside Colab: DGX or another multi-GPU server
 
 More detail is in [docs/HARDWARE_REQUIREMENTS.md](docs/HARDWARE_REQUIREMENTS.md).
 
@@ -129,7 +123,7 @@ How they are used:
 
 ## Dataset Layouts
 
-### Local / DGX raw layout for `.py` scripts
+### Python raw layout for `.py` scripts
 
 This is the default script-based layout:
 
@@ -155,7 +149,7 @@ Important:
 - you can override `dataset.root`, `dataset.image_dir`, and `dataset.mask_dir`
 - the local `.py` path also supports `ratio`, `predefined`, and `pre_split_dirs` split modes
 
-### Local / DGX pre-split layout for `.py` scripts
+### Python pre-split layout for `.py` scripts
 
 If you already have `train`, `val`, and `test` directories, use `dataset.split_strategy=pre_split_dirs`:
 
@@ -172,9 +166,9 @@ some_dataset_root/
     masks/
 ```
 
-### Kaggle processed layout for the notebook
+### Processed split layout for Colab
 
-The notebook expects the processed dataset structure under a detected `WBSNet_Dataset` root:
+The Colab workflow expects this processed dataset structure on Google Drive under `MyDrive/WBSNet_Dataset`:
 
 ```text
 WBSNet_Dataset/
@@ -199,7 +193,7 @@ WBSNet_Dataset/
     ...
 ```
 
-The notebook auto-detects `WBSNet_Dataset` from `/kaggle/input` when possible.
+The Colab notebook symlinks these folders into `data/` and the Python scripts consume them with `dataset.split_strategy=pre_split_dirs`.
 
 ## Installation
 
@@ -210,6 +204,7 @@ Choose one of these local setup options.
 ```bash
 python -m venv .venv
 python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
@@ -228,12 +223,12 @@ conda activate wbsnet
 
 Notes:
 
-- `pyproject.toml` is the main package definition.
-- `requirements.txt` is a pinned fallback list, not the best source of truth for the package metadata.
+- `pyproject.toml` intentionally does not force-install PyTorch, so Colab keeps its CUDA-enabled torch build.
+- `requirements.txt` pins the full local/HPC Python stack, including `torch` and `torchvision`.
 
-## Local / DGX Python Workflow
+## Python Workflow
 
-Use this path when you want normal script-driven training on a workstation, server, or DGX. This is the preferred path outside Kaggle.
+Use this path when you want normal script-driven training on Google Colab A100, a workstation, server, or DGX.
 
 ### 1. Verify the repo
 
@@ -244,13 +239,15 @@ python scripts/verify_repo.py
 ### 2. Run a smoke test
 
 ```bash
-python train.py --config configs/kvasir_wbsnet.yaml --override train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
+python train.py --config configs/kvasir_wbsnet.yaml \
+  --override dataset.split_strategy=pre_split_dirs train.epochs=1 train.batch_size=2 runtime.wandb.mode=offline
 ```
 
-### 3. Run the full local training job
+### 3. Run the full training job
 
 ```bash
-python train.py --config configs/kvasir_wbsnet.yaml
+python train.py --config configs/kvasir_wbsnet.yaml \
+  --override dataset.split_strategy=pre_split_dirs
 ```
 
 ### 4. Evaluate the best checkpoint
@@ -321,37 +318,9 @@ If you are on Slurm:
 sbatch scripts/slurm_train.sh configs/kvasir_wbsnet.yaml
 ```
 
-## Kaggle Notebook Workflow
+## Config Guide For The Python Pipeline
 
-Use this path when you want the notebook-managed paper workflow inside Kaggle.
-
-### What is different from the local `.py` pipeline
-
-- the notebook is self-contained
-- the notebook does not read `configs/*.yaml`
-- the notebook expects processed splits under `WBSNet_Dataset`
-- the notebook is more aggressive about controlling disk growth
-- the notebook is designed around Kaggle secrets and `/kaggle/working`
-
-### Recommended Kaggle steps
-
-1. Add the processed dataset as a Kaggle input.
-2. Confirm the input contains `WBSNet_Dataset`.
-3. Add `WANDB_API_KEY` in Kaggle Secrets if you want W&B logging.
-4. Open [`WBSNet_Model.ipynb`](WBSNet_Model.ipynb) in Kaggle.
-5. Run the notebook top to bottom.
-6. Use the notebook's own config cells to choose single-run checks, paper sweeps, or lambda sweeps.
-7. Save important outputs or notebook versions before the session ends.
-
-### Kaggle notebook notes
-
-- The notebook is the right choice when Kaggle output limits matter.
-- The notebook is intentionally leaner than the local script path.
-- If you want full checkpoint histories and larger export folders, prefer the local `.py` pipeline instead of trying to force the notebook to behave like a workstation run.
-
-## Config Guide For The Local `.py` Pipeline
-
-The local and DGX scripts are controlled by YAML in [`configs/`](configs/).
+The Colab/script workflow is controlled by YAML in [`configs/`](configs/), with run-specific values passed through `--override`.
 
 Useful knobs:
 
@@ -399,7 +368,7 @@ python train.py --config configs/kvasir_wbsnet.yaml --override dataset.split_str
 
 ## Config Files
 
-### Main local / DGX configs
+### Main Python configs
 
 - [`configs/default.yaml`](configs/default.yaml): shared base config for the local `.py` pipeline
 - [`configs/kvasir_wbsnet.yaml`](configs/kvasir_wbsnet.yaml): full WBSNet on Kvasir
@@ -420,26 +389,13 @@ python train.py --config configs/kvasir_wbsnet.yaml --override dataset.split_str
 - [`configs/ablation_no_wavelet.yaml`](configs/ablation_no_wavelet.yaml)
 - [`configs/ablation_db2_wavelet.yaml`](configs/ablation_db2_wavelet.yaml)
 
-### Optional constrained-environment script configs
-
-These are helper YAMLs for script-based runs in tighter environments. They are not used by the Kaggle notebook itself.
-
-- [`configs/kaggle_kvasir_wbsnet.yaml`](configs/kaggle_kvasir_wbsnet.yaml)
-- [`configs/kaggle_clinicdb_wbsnet.yaml`](configs/kaggle_clinicdb_wbsnet.yaml)
-- [`configs/kaggle_isic2018_wbsnet.yaml`](configs/kaggle_isic2018_wbsnet.yaml)
-
 ## W&B
 
-### Local / DGX
+### Colab / Local
 
-- put your API key in `.env`
+- put your API key in `.env` locally or set `WANDB_API_KEY` in Colab
 - supported names are `WANDB_API_KEY` and `WAND_API_KEY`
-- use `runtime.wandb.mode=offline` for smoke tests when needed
-
-### Kaggle
-
-- add `WANDB_API_KEY` in Kaggle Secrets
-- let the notebook read it from the environment
+- use `runtime.wandb.mode=offline` for smoke tests and long Colab runs unless online logging is required
 
 Example offline local run:
 
@@ -520,20 +476,14 @@ make
 
 ## Repo Verification And First Runs
 
-### First local run
+### First Colab A100 run
 
-1. Install the environment.
-2. Run `python scripts/verify_repo.py`.
-3. Run a 1-epoch Kvasir smoke test.
-4. Run the full `configs/kvasir_wbsnet.yaml` training job.
-5. Add the remaining datasets after Kvasir is stable.
-
-### First Kaggle run
-
-1. Attach the processed dataset input.
-2. Add the `WANDB_API_KEY` secret if needed.
-3. Run the notebook single-experiment sanity check first.
-4. Start the full paper suite only after the single run is healthy.
+1. Open `WBSNet_Colab.ipynb` and select an A100 runtime.
+2. Mount Drive and confirm `MyDrive/WBSNet_Dataset` contains the processed split folders.
+3. Run `python3 scripts/verify_repo.py`.
+4. Run the 1-epoch smoke test cell.
+5. Run `scripts/run_paper_optionA.py --seeds 3407` first.
+6. Add seeds `3408 3409` only after the first seed produces stable artifacts.
 
 ## Current Repo Layout
 
@@ -549,5 +499,5 @@ data_preprocessing.ipynb
 evaluate.py
 predict.py
 train.py
-WBSNet_Model.ipynb
+WBSNet_Colab.ipynb
 ```

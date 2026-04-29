@@ -106,8 +106,39 @@ def _load_experiment_name(config_path: Path) -> str:
     return config["experiment"]["name"]
 
 
+def _load_run_config(config_path: str, seed: int, extra: tuple[str, ...], run_name: str) -> dict:
+    sys.path.insert(0, str(ROOT))
+    from wbsnet.config import load_config
+
+    overrides = (f"experiment.seed={seed}", *extra, f"experiment.run_name={run_name}")
+    return load_config(ROOT / config_path, overrides)
+
+
 def _has_best_checkpoint(experiment: str, run_name: str) -> bool:
     return (ROOT / "outputs" / experiment / run_name / "checkpoints" / "best.pt").exists()
+
+
+def _best_checkpoint(experiment: str, run_name: str) -> Path:
+    return ROOT / "outputs" / experiment / run_name / "checkpoints" / "best.pt"
+
+
+def _preferred_eval_split(config: dict) -> str:
+    dataset = config["dataset"]
+    if dataset.get("split_strategy") != "pre_split_dirs":
+        return "test"
+
+    root = Path(dataset["root"])
+    if not root.is_absolute():
+        root = ROOT / root
+    if (root / "test").exists():
+        return "test"
+    if (root / "val").exists():
+        return "val"
+    return "all"
+
+
+def _evaluation_json_path(experiment: str, run_name: str, dataset_name: str, split: str) -> Path:
+    return ROOT / "outputs" / experiment / run_name / "evaluation" / f"{dataset_name}_{split}.json"
 
 
 def _run(cmd: list[str], dry_run: bool) -> int:
@@ -133,6 +164,52 @@ def _train_command(config: str, seed: int, extra: tuple[str, ...]) -> list[str]:
     return cmd
 
 
+def _evaluate_trained_run(
+    config: str,
+    seed: int,
+    extra: tuple[str, ...],
+    run_name: str,
+    dry_run: bool,
+    fail_fast: bool,
+    failures: list[str],
+) -> None:
+    run_config = _load_run_config(config, seed, extra, run_name)
+    experiment = run_config["experiment"]["name"]
+    checkpoint = _best_checkpoint(experiment, run_name)
+    if not checkpoint.exists() and not dry_run:
+        failures.append(f"evaluation: missing checkpoint for {run_name}")
+        if fail_fast:
+            raise SystemExit(failures[-1])
+        return
+
+    eval_split = _preferred_eval_split(run_config)
+    dataset_name = run_config["dataset"]["name"]
+    metrics_path = _evaluation_json_path(experiment, run_name, dataset_name, eval_split)
+    if not dry_run and metrics_path.exists():
+        print(f"[skip] evaluation {run_name} ({dataset_name}/{eval_split})")
+        return
+
+    cmd = [
+        "python3",
+        str(ROOT / "evaluate.py"),
+        "--config",
+        str(ROOT / config),
+        "--checkpoint",
+        str(checkpoint),
+        "--split",
+        eval_split,
+        "--override",
+        f"experiment.seed={seed}",
+        *extra,
+        f"experiment.run_name={run_name}",
+    ]
+    rc = _run(cmd, dry_run)
+    if rc != 0:
+        failures.append(f"evaluation: {config} seed={seed} split={eval_split}")
+        if fail_fast:
+            raise SystemExit(failures[-1])
+
+
 def _train_runs(
     label: str,
     configs: tuple[str, ...],
@@ -149,13 +226,15 @@ def _train_runs(
             run_name = f"{experiment}_seed{seed}"
             if not dry_run and _has_best_checkpoint(experiment, run_name):
                 print(f"[skip] {run_name} (best.pt already exists)")
-                continue
-            cmd = _train_command(config, seed, extra + (f"experiment.run_name={run_name}",))
-            rc = _run(cmd, dry_run)
-            if rc != 0:
-                failures.append(f"{label}: {config} seed={seed}")
-                if fail_fast:
-                    raise SystemExit(f"Aborting on first failure: {failures[-1]}")
+            else:
+                cmd = _train_command(config, seed, extra + (f"experiment.run_name={run_name}",))
+                rc = _run(cmd, dry_run)
+                if rc != 0:
+                    failures.append(f"{label}: {config} seed={seed}")
+                    if fail_fast:
+                        raise SystemExit(f"Aborting on first failure: {failures[-1]}")
+                    continue
+            _evaluate_trained_run(config, seed, extra, run_name, dry_run, fail_fast, failures)
 
 
 def _generalization_eval(args: Args, failures: list[str]) -> None:
@@ -164,7 +243,7 @@ def _generalization_eval(args: Args, failures: list[str]) -> None:
     for seed in args.seeds:
         run_name = f"{kvasir_experiment}_seed{seed}"
         ckpt = ROOT / "outputs" / kvasir_experiment / run_name / "checkpoints" / "best.pt"
-        if not ckpt.exists():
+        if not ckpt.exists() and not args.dry_run:
             msg = f"missing checkpoint for {run_name}; skipping ColonDB generalization"
             print(f"[warn] {msg}")
             failures.append(f"generalization: {msg}")
@@ -178,6 +257,10 @@ def _generalization_eval(args: Args, failures: list[str]) -> None:
             str(ckpt),
             "--split",
             "all",
+            "--override",
+            *args.extra_overrides,
+            f"experiment.seed={seed}",
+            f"experiment.run_name={run_name}",
         ]
         rc = _run(cmd, args.dry_run)
         if rc != 0:

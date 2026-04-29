@@ -23,12 +23,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _dataset_variants(config: dict) -> list[dict]:
+def _dataset_variants(config: dict, requested_split: str) -> list[dict]:
     extra = config.get("evaluation", {}).get("datasets", [])
     if extra:
         return extra
     dataset_cfg = dict(config["dataset"])
-    dataset_cfg["split"] = "test"
+    dataset_cfg["split"] = requested_split
     return [dataset_cfg]
 
 
@@ -46,7 +46,12 @@ def main() -> None:
     device = select_device(config, distributed_state)
 
     model = build_model(config).to(device)
-    load_checkpoint(args.checkpoint, model, map_location=device)
+    checkpoint = load_checkpoint(args.checkpoint, model, map_location=device)
+    checkpoint_config = checkpoint.get("config", {})
+    checkpoint_experiment = checkpoint_config.get("experiment", {}) if isinstance(checkpoint_config, dict) else {}
+    user_set_run_name = any(override.startswith("experiment.run_name=") for override in args.override)
+    if not user_set_run_name and checkpoint_experiment.get("run_name"):
+        config["experiment"]["run_name"] = checkpoint_experiment["run_name"]
 
     run_dir = Path(args.checkpoint).resolve().parents[1]
     evaluation_dir = ensure_dir(run_dir / "evaluation")
@@ -61,16 +66,17 @@ def main() -> None:
         )
 
     try:
-        for dataset_cfg in _dataset_variants(config):
+        for dataset_cfg in _dataset_variants(config, args.split):
             merged_dataset = dict(config["dataset"])
             merged_dataset.update(dataset_cfg)
+            eval_split = dataset_cfg.get("split", args.split)
             loader = build_inference_loader(
                 dataset_config=merged_dataset,
-                split=dataset_cfg.get("split", args.split),
+                split=eval_split,
                 batch_size=int(config["train"]["batch_size"]),
                 distributed_state=distributed_state,
             )
-            save_dir = evaluation_dir / merged_dataset["name"] / "predictions" if is_main_process(distributed_state) else None
+            save_dir = evaluation_dir / f"{merged_dataset['name']}_{eval_split}" / "predictions" if is_main_process(distributed_state) else None
             metrics = evaluate_and_save_predictions(
                 model=model,
                 loader=loader,
@@ -86,13 +92,17 @@ def main() -> None:
                 payload = {
                     "metrics": metrics,
                     "dataset_name": merged_dataset["name"],
+                    "split": eval_split,
                     "variant_name": variant_name_from_config(config),
                     "checkpoint": str(Path(args.checkpoint).resolve()),
                     "experiment_name": config["experiment"]["name"],
                     "run_name": config["experiment"]["run_name"],
                     "seed": config["experiment"]["seed"],
+                    "checkpoint_experiment_name": checkpoint_experiment.get("name"),
+                    "checkpoint_run_name": checkpoint_experiment.get("run_name"),
+                    "checkpoint_seed": checkpoint_experiment.get("seed"),
                 }
-                persist_metrics(evaluation_dir / f"{merged_dataset['name']}.json", payload)
+                persist_metrics(evaluation_dir / f"{merged_dataset['name']}_{eval_split}.json", payload)
     finally:
         if logger is not None:
             logger.finish()

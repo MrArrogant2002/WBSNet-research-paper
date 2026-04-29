@@ -8,17 +8,17 @@ version = "0.1.0"
 description = "DGX-ready WBSNet research codebase for medical image segmentation."
 readme = "README.md"
 requires-python = ">=3.10"
-# Pinned to the exact versions in requirements.txt for reproducibility.
-# When bumping, update both files together and re-run pip-audit.
+# Runtime dependencies that are safe to install into Colab without replacing
+# its CUDA-enabled PyTorch build. Install torch/torchvision through
+# requirements.txt, environment.yml, or the host image.
 dependencies = [
-  "torch==2.2.2",
-  "torchvision==0.17.2",
   "numpy==1.26.4",
   "Pillow==10.3.0",
   "PyYAML==6.0.1",
   "tqdm==4.66.4",
   "wandb==0.17.0",
   "pandas==2.2.2",
+  "tabulate==0.9.0",
   "matplotlib==3.8.4",
   "pywavelets==1.6.0",
   "albumentations==1.4.21",
@@ -26,6 +26,12 @@ dependencies = [
   "scipy==1.12.0",
   "segmentation-models-pytorch==0.3.4",
   "pytorch-wavelets==1.3.0",
+]
+
+[project.optional-dependencies]
+torch-cu121 = [
+  "torch==2.2.2",
+  "torchvision==0.17.2",
 ]
 
 [tool.setuptools.packages.find]

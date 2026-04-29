@@ -17,7 +17,20 @@ if str(ROOT) not in sys.path:
 from wbsnet.utils.io import ensure_dir, load_json, save_json
 
 LOWER_IS_BETTER = {"hd95", "loss", "segmentation_loss", "boundary_loss", "total_loss"}
-IDENTITY_COLUMNS = {"source", "record_type", "experiment_name", "run_name", "dataset_name", "variant_name", "checkpoint", "seed"}
+IDENTITY_COLUMNS = {
+    "source",
+    "record_type",
+    "experiment_name",
+    "run_name",
+    "dataset_name",
+    "split",
+    "variant_name",
+    "checkpoint",
+    "checkpoint_experiment_name",
+    "checkpoint_run_name",
+    "checkpoint_seed",
+    "seed",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,8 +67,12 @@ def _collect_records(root: Path) -> list[dict[str, Any]]:
             "experiment_name": payload.get("experiment_name"),
             "run_name": payload.get("run_name"),
             "dataset_name": payload.get("dataset_name"),
+            "split": payload.get("split"),
             "variant_name": payload.get("variant_name"),
             "checkpoint": payload.get("checkpoint"),
+            "checkpoint_experiment_name": payload.get("checkpoint_experiment_name"),
+            "checkpoint_run_name": payload.get("checkpoint_run_name"),
+            "checkpoint_seed": payload.get("checkpoint_seed"),
             "seed": payload.get("seed"),
         }
         record.update(payload.get("metrics", {}))
@@ -103,7 +120,7 @@ def _select_comparisons(variants: list[str], reference: str | None) -> list[tupl
     if reference is None:
         return list(itertools.combinations(ordered, 2))
     if reference not in ordered:
-        raise ValueError(f"Reference variant '{reference}' was not found in the available variants: {ordered}")
+        return []
     return [(reference, variant) for variant in ordered if variant != reference]
 
 
@@ -124,7 +141,7 @@ def main() -> None:
         raise RuntimeError("None of the requested metrics were present in the collected records.")
 
     results: list[dict[str, Any]] = []
-    for (record_type, dataset_name), group in frame.groupby(["record_type", "dataset_name"], dropna=False):
+    for (record_type, dataset_name, split), group in frame.groupby(["record_type", "dataset_name", "split"], dropna=False):
         variants = sorted(group["variant_name"].dropna().unique().tolist())
         for variant_a, variant_b in _select_comparisons(variants, args.reference):
             frame_a = group[group["variant_name"] == variant_a]
@@ -138,6 +155,7 @@ def main() -> None:
                     {
                         "record_type": record_type,
                         "dataset_name": dataset_name,
+                        "split": split,
                         "metric": metric,
                         "variant_a": variant_a,
                         "variant_b": variant_b,
@@ -152,7 +170,11 @@ def main() -> None:
 
     result_frame = pd.DataFrame(results)
     result_frame.to_csv(output_dir / "significance_tests.csv", index=False)
-    (output_dir / "significance_tests.md").write_text(result_frame.to_markdown(index=False), encoding="utf-8")
+    try:
+        markdown = result_frame.to_markdown(index=False)
+    except ImportError:
+        markdown = result_frame.to_csv(index=False)
+    (output_dir / "significance_tests.md").write_text(markdown, encoding="utf-8")
     save_json(output_dir / "significance_tests.json", {"results": result_frame.to_dict(orient="records")})
     print(f"Saved significance analysis to {output_dir}")
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import math
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
@@ -41,8 +43,14 @@ def _discover_samples_under(root: Path, dataset_config: dict[str, Any]) -> list[
 
 def _list_files(path: Path, extensions: list[str]) -> dict[str, Path]:
     files: dict[str, Path] = {}
+    allowed_extensions = {ext.lower() for ext in extensions}
     for item in sorted(path.rglob("*")):
-        if item.is_file() and item.suffix.lower() in {ext.lower() for ext in extensions}:
+        if item.is_file() and item.suffix.lower() in allowed_extensions:
+            if item.stem in files:
+                raise RuntimeError(
+                    f"Duplicate sample stem '{item.stem}' under {path}. "
+                    "Image/mask pairing is stem-based, so stems must be unique."
+                )
             files[item.stem] = item
     return files
 
@@ -50,6 +58,30 @@ def _list_files(path: Path, extensions: list[str]) -> dict[str, Path]:
 def discover_samples(dataset_config: dict[str, Any]) -> list[SampleRecord]:
     root = Path(dataset_config["root"])
     return _discover_samples_under(root, dataset_config)
+
+
+def _available_pre_split_dirs(dataset_config: dict[str, Any]) -> list[str]:
+    root = Path(dataset_config["root"])
+    if not root.exists():
+        raise FileNotFoundError(f"Dataset root not found: {root}")
+    return sorted(item.name for item in root.iterdir() if item.is_dir())
+
+
+def _discover_all_pre_split_samples(dataset_config: dict[str, Any]) -> list[SampleRecord]:
+    root = Path(dataset_config["root"])
+    if (root / dataset_config.get("image_dir", "images")).exists():
+        return _discover_samples_under(root, dataset_config)
+
+    records: list[SampleRecord] = []
+    for split_name in _available_pre_split_dirs(dataset_config):
+        split_root = root / split_name
+        try:
+            records.extend(_discover_samples_under(split_root, dataset_config))
+        except FileNotFoundError:
+            continue
+    if not records:
+        raise RuntimeError(f"No image/mask pairs found in pre-split dataset root: {root}")
+    return records
 
 
 def _resolve_split_file(dataset_config: dict[str, Any], split: str) -> Path:
@@ -78,6 +110,8 @@ def _split_from_file(samples: list[SampleRecord], dataset_config: dict[str, Any]
 
 def split_samples(samples: list[SampleRecord], dataset_config: dict[str, Any], split: str) -> list[SampleRecord]:
     if split == "all":
+        if dataset_config.get("split_strategy") == "pre_split_dirs":
+            return _discover_all_pre_split_samples(dataset_config)
         return list(samples)
 
     strategy = dataset_config.get("split_strategy", "ratio")
@@ -109,6 +143,14 @@ def split_samples(samples: list[SampleRecord], dataset_config: dict[str, Any], s
     if split not in slices:
         raise ValueError(f"Unsupported split: {split}")
     return slices[split]
+
+
+def _require_non_empty(samples: list[SampleRecord], split: str, dataset_config: dict[str, Any]) -> None:
+    if not samples:
+        raise RuntimeError(
+            f"Split '{split}' for dataset '{dataset_config.get('name', 'unknown')}' is empty. "
+            f"Check dataset.root={dataset_config.get('root')} and split_strategy={dataset_config.get('split_strategy', 'ratio')}."
+        )
 
 
 class BinarySegmentationDataset(Dataset):
@@ -148,6 +190,12 @@ def _loader_kwargs(dataset_config: dict[str, Any]) -> dict[str, Any]:
     return loader_kwargs
 
 
+def _seed_worker(worker_id: int) -> None:
+    worker_seed = torch.initial_seed() % 2**32
+    random.seed(worker_seed)
+    np.random.seed(worker_seed)
+
+
 def _build_loader(
     dataset: Dataset,
     dataset_config: dict[str, Any],
@@ -156,6 +204,8 @@ def _build_loader(
     distributed_state: DistributedState,
 ) -> DataLoader:
     sampler = None
+    generator = torch.Generator()
+    generator.manual_seed(int(dataset_config.get("split_seed", 3407)))
     if distributed_state.enabled:
         sampler = DistributedSampler(dataset, shuffle=shuffle, drop_last=shuffle)
         shuffle = False
@@ -165,20 +215,23 @@ def _build_loader(
         shuffle=shuffle,
         sampler=sampler,
         drop_last=shuffle,
+        worker_init_fn=_seed_worker,
+        generator=generator,
         **_loader_kwargs(dataset_config),
     )
 
 
 def build_dataloaders(config: dict[str, Any], distributed_state: DistributedState) -> dict[str, DataLoader]:
     dataset_config = config["dataset"]
-    samples = discover_samples(dataset_config)
+    samples = [] if dataset_config.get("split_strategy") == "pre_split_dirs" else discover_samples(dataset_config)
     splits = {
         "train": split_samples(samples, dataset_config, "train"),
         "val": split_samples(samples, dataset_config, "val"),
-        "test": split_samples(samples, dataset_config, "test"),
     }
+    _require_non_empty(splits["train"], "train", dataset_config)
+    _require_non_empty(splits["val"], "val", dataset_config)
     batch_size = int(config["train"]["batch_size"])
-    return {
+    loaders = {
         "train": _build_loader(
             BinarySegmentationDataset(splits["train"], dataset_config, train=True),
             dataset_config,
@@ -193,14 +246,21 @@ def build_dataloaders(config: dict[str, Any], distributed_state: DistributedStat
             shuffle=False,
             distributed_state=distributed_state,
         ),
-        "test": _build_loader(
-            BinarySegmentationDataset(splits["test"], dataset_config, train=False),
-            dataset_config,
-            batch_size=batch_size,
-            shuffle=False,
-            distributed_state=distributed_state,
-        ),
     }
+    try:
+        splits["test"] = split_samples(samples, dataset_config, "test")
+    except (FileNotFoundError, ValueError, RuntimeError):
+        return loaders
+    _require_non_empty(splits["test"], "test", dataset_config)
+
+    loaders["test"] = _build_loader(
+        BinarySegmentationDataset(splits["test"], dataset_config, train=False),
+        dataset_config,
+        batch_size=batch_size,
+        shuffle=False,
+        distributed_state=distributed_state,
+    )
+    return loaders
 
 
 def build_inference_loader(
@@ -209,7 +269,9 @@ def build_inference_loader(
     batch_size: int,
     distributed_state: DistributedState,
 ) -> DataLoader:
-    samples = split_samples(discover_samples(dataset_config), dataset_config, split)
+    base_samples = [] if dataset_config.get("split_strategy") == "pre_split_dirs" else discover_samples(dataset_config)
+    samples = split_samples(base_samples, dataset_config, split)
+    _require_non_empty(samples, split, dataset_config)
     dataset = BinarySegmentationDataset(samples, dataset_config, train=False)
     return _build_loader(
         dataset,

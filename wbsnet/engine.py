@@ -40,9 +40,17 @@ def select_device(
 def configure_runtime(config: dict[str, Any]) -> None:
     runtime = config.get("runtime", {})
     torch.backends.cudnn.benchmark = bool(runtime.get("cudnn_benchmark", True))
+    allow_tf32 = bool(runtime.get("allow_tf32", True))
+    torch.backends.cuda.matmul.allow_tf32 = allow_tf32
+    torch.backends.cudnn.allow_tf32 = allow_tf32
+    if hasattr(torch, "set_float32_matmul_precision") and allow_tf32:
+        torch.set_float32_matmul_precision("high")
     if runtime.get("deterministic", False):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+        torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 def build_optimizer(
@@ -68,6 +76,11 @@ def build_optimizer(
     return optimizer, scheduler
 
 
+def _unwrap_model(model: torch.nn.Module) -> torch.nn.Module:
+    module = model.module if hasattr(model, "module") else model
+    return module._orig_mod if hasattr(module, "_orig_mod") else module
+
+
 def save_checkpoint(
     path: str | Path,
     model: torch.nn.Module,
@@ -79,7 +92,7 @@ def save_checkpoint(
     config: dict[str, Any],
     include_training_state: bool = True,
 ) -> None:
-    module = model.module if hasattr(model, "module") else model
+    module = _unwrap_model(model)
     payload = {
         "epoch": epoch,
         "best_metric": best_metric,
@@ -92,7 +105,9 @@ def save_checkpoint(
         payload["scaler"] = scaler.state_dict()
     target = Path(path)
     ensure_dir(target.parent)
-    torch.save(payload, target)
+    tmp_target = target.with_suffix(target.suffix + ".tmp")
+    torch.save(payload, tmp_target)
+    tmp_target.replace(target)
 
 
 def load_checkpoint(
@@ -107,7 +122,7 @@ def load_checkpoint(
     # state plus the run config, which require pickle deserialization. Only load
     # checkpoints produced by this codebase or other trusted sources.
     checkpoint = torch.load(path, map_location=map_location, weights_only=False)
-    module = model.module if hasattr(model, "module") else model
+    module = _unwrap_model(model)
     module.load_state_dict(checkpoint["state_dict"], strict=True)
     if optimizer is not None and "optimizer" in checkpoint:
         optimizer.load_state_dict(checkpoint["optimizer"])
@@ -128,6 +143,34 @@ def _mean_scalar_dict(totals: dict[str, float], count: int) -> dict[str, float]:
     return {key: float(value / count) for key, value in totals.items()}
 
 
+def _raise_if_nonfinite(name: str, value: torch.Tensor, *, epoch: int, step: int) -> None:
+    if not torch.isfinite(value.detach()).all():
+        raise FloatingPointError(f"Non-finite {name} at epoch={epoch + 1}, step={step}.")
+
+
+def _finish_optimizer_step(
+    *,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scaler: GradScaler,
+    clip_grad_norm: float,
+) -> None:
+    scaler.unscale_(optimizer)
+    if clip_grad_norm > 0:
+        torch.nn.utils.clip_grad_norm_(
+            model.parameters(),
+            max_norm=clip_grad_norm,
+            error_if_nonfinite=True,
+        )
+    else:
+        for parameter in model.parameters():
+            if parameter.grad is not None and not torch.isfinite(parameter.grad).all():
+                raise FloatingPointError("Non-finite gradient detected before optimizer step.")
+    scaler.step(optimizer)
+    scaler.update()
+    optimizer.zero_grad(set_to_none=True)
+
+
 def run_epoch(
     *,
     model: torch.nn.Module,
@@ -144,6 +187,8 @@ def run_epoch(
 ) -> dict[str, float]:
     amp_enabled = bool(config["train"].get("amp", True) and device.type == "cuda")
     grad_accum_steps = int(config["train"].get("grad_accum_steps", 1))
+    if grad_accum_steps < 1:
+        raise ValueError(f"train.grad_accum_steps must be >= 1, got {grad_accum_steps}.")
     boundary_weight = float(config["train"].get("boundary_loss_weight", 0.5))
     clip_grad_norm = float(config["train"].get("clip_grad_norm", 0.0))
     threshold = float(config["evaluation"].get("threshold", 0.5))
@@ -193,19 +238,18 @@ def run_epoch(
             with torch.autocast(device_type=device.type, enabled=amp_enabled):
                 output = model(images)
                 loss, loss_parts = total_loss(output, masks, boundary_weight)
+                _raise_if_nonfinite("loss", loss, epoch=epoch, step=step)
                 scaled_loss = loss / grad_accum_steps
 
             if training and optimizer is not None:
                 scaler.scale(scaled_loss).backward()
                 if step % grad_accum_steps == 0:
-                    if clip_grad_norm > 0:
-                        scaler.unscale_(optimizer)
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), max_norm=clip_grad_norm
-                        )
-                    scaler.step(optimizer)
-                    scaler.update()
-                    optimizer.zero_grad(set_to_none=True)
+                    _finish_optimizer_step(
+                        model=model,
+                        optimizer=optimizer,
+                        scaler=scaler,
+                        clip_grad_norm=clip_grad_norm,
+                    )
 
         meter.update(
             output["logits"].detach(), masks.detach(), float(loss.detach().item())
@@ -234,12 +278,12 @@ def run_epoch(
                 )
 
     if training and optimizer is not None and len(loader) % grad_accum_steps != 0:
-        if clip_grad_norm > 0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip_grad_norm)
-        scaler.step(optimizer)
-        scaler.update()
-        optimizer.zero_grad(set_to_none=True)
+        _finish_optimizer_step(
+            model=model,
+            optimizer=optimizer,
+            scaler=scaler,
+            clip_grad_norm=clip_grad_norm,
+        )
 
     metrics = meter.compute(distributed_state)
     metrics.update(_mean_scalar_dict(loss_totals, loss_steps))
@@ -264,6 +308,7 @@ def evaluate_and_save_predictions(
     split_name: str = "evaluation",
 ) -> dict[str, float]:
     model.eval()
+    amp_enabled = bool(config["train"].get("amp", True) and device.type == "cuda")
     threshold = float(config["evaluation"].get("threshold", 0.5))
     meter = BinarySegmentationMeter(
         threshold=threshold,
@@ -295,10 +340,12 @@ def evaluate_and_save_predictions(
     for batch in _progress_bar(loader, "predict", is_main_process(distributed_state)):
         images = batch["image"].to(device, non_blocking=True)
         masks = batch["mask"].to(device, non_blocking=True)
-        output = model(images)
-        loss, loss_parts = total_loss(
-            output, masks, float(config["train"].get("boundary_loss_weight", 0.5))
-        )
+        with torch.autocast(device_type=device.type, enabled=amp_enabled):
+            output = model(images)
+            loss, loss_parts = total_loss(
+                output, masks, float(config["train"].get("boundary_loss_weight", 0.5))
+            )
+        _raise_if_nonfinite("evaluation loss", loss, epoch=step, step=loss_steps + 1)
         meter.update(output["logits"], masks, float(loss.item()))
         for key in loss_totals:
             loss_totals[key] += float(loss_parts[key])

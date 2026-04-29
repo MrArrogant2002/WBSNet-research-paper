@@ -51,6 +51,7 @@ train:
   epochs: 200
   batch_size: 16
   grad_accum_steps: 1
+  early_stopping_patience: null
   amp: true
   compile: false
   encoder_lr: 0.0001
@@ -77,6 +78,7 @@ evaluation:
 runtime:
   deterministic: false
   cudnn_benchmark: true
+  allow_tf32: true
   device: auto
   distributed:
     backend: nccl

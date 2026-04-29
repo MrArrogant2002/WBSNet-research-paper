@@ -43,8 +43,12 @@ def _collect_records(root: Path) -> list[dict[str, Any]]:
             "experiment_name": payload.get("experiment_name"),
             "run_name": payload.get("run_name"),
             "dataset_name": payload.get("dataset_name"),
+            "split": payload.get("split"),
             "variant_name": payload.get("variant_name"),
             "checkpoint": payload.get("checkpoint"),
+            "checkpoint_experiment_name": payload.get("checkpoint_experiment_name"),
+            "checkpoint_run_name": payload.get("checkpoint_run_name"),
+            "checkpoint_seed": payload.get("checkpoint_seed"),
             "seed": payload.get("seed"),
         }
         for key, value in metrics.items():
@@ -54,12 +58,26 @@ def _collect_records(root: Path) -> list[dict[str, Any]]:
 
 
 def _aggregate_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    metric_columns = [column for column in frame.columns if column not in {"source", "record_type", "experiment_name", "run_name", "dataset_name", "variant_name", "checkpoint", "seed"}]
+    identity_columns = {
+        "source",
+        "record_type",
+        "experiment_name",
+        "run_name",
+        "dataset_name",
+        "split",
+        "variant_name",
+        "checkpoint",
+        "checkpoint_experiment_name",
+        "checkpoint_run_name",
+        "checkpoint_seed",
+        "seed",
+    }
+    metric_columns = [column for column in frame.columns if column not in identity_columns]
     available = [column for column in metric_columns if pd.api.types.is_numeric_dtype(frame[column])]
     if not available:
         return frame
 
-    grouped = frame.groupby(["record_type", "dataset_name", "variant_name"], dropna=False)[available]
+    grouped = frame.groupby(["record_type", "dataset_name", "split", "variant_name"], dropna=False)[available]
     mean_df = grouped.mean().add_suffix("_mean")
     std_df = grouped.std(ddof=1).fillna(0.0).add_suffix("_std")
     count_df = grouped.size().rename("num_runs")
@@ -69,7 +87,10 @@ def _aggregate_frame(frame: pd.DataFrame) -> pd.DataFrame:
 def _to_markdown_table(frame: pd.DataFrame) -> str:
     if frame.empty:
         return "No experiment records found."
-    return frame.to_markdown(index=False)
+    try:
+        return frame.to_markdown(index=False)
+    except ImportError:
+        return frame.to_csv(index=False)
 
 
 def _to_latex_table(frame: pd.DataFrame) -> str:
