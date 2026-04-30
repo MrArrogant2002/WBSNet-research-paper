@@ -15,8 +15,10 @@ def validate_configs(root: Path) -> list[str]:
     for path in sorted((root / "configs").glob("*.yaml")):
         try:
             load_config(path)
-        except Exception as exc:
-            errors.append(f"{path}: {exc}")
+        except BaseException as exc:
+            if isinstance(exc, KeyboardInterrupt):
+                raise
+            errors.append(f"{path}: {exc.__class__.__name__}: {exc}")
     return errors
 
 
@@ -112,8 +114,10 @@ def runtime_smoke(root: Path) -> list[str]:
             save_checkpoint(checkpoint_path, model, optimizer, scheduler, scaler, 0, val_metrics["dice"], config)
             reloaded = build_model(config).to(device)
             load_checkpoint(checkpoint_path, reloaded, map_location=device)
-    except Exception as exc:
-        errors.append(f"train/val/checkpoint smoke: {exc}")
+    except BaseException as exc:
+        if isinstance(exc, KeyboardInterrupt):
+            raise
+        errors.append(f"train/val/checkpoint smoke: {exc.__class__.__name__}: {exc}")
     return errors
 
 

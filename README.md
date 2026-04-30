@@ -14,7 +14,8 @@ The fastest way to reproduce the paper results end-to-end:
 
 1. Open [`WBSNet_Colab.ipynb`](WBSNet_Colab.ipynb) in Colab (Pro+ A100 recommended; Pro L4 also works).
 2. Place `WBSNet_Dataset/{kvasir,cvc_clinicdb,cvc_colondb,isic2018}` on Google Drive.
-3. Run cells top-to-bottom. The headline command in cell 8 is:
+3. Run cells top-to-bottom. The notebook installs [`requirements-colab.txt`](requirements-colab.txt), then installs this package with `pip install --no-deps -e .` so Colab keeps its CUDA-enabled PyTorch runtime.
+4. The headline command in the paper-run cell is:
 
    ```bash
    python3 scripts/run_paper_optionA.py \
