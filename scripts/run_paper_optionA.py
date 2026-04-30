@@ -58,6 +58,7 @@ class Args:
     dry_run: bool
     extra_overrides: tuple[str, ...]
     fail_fast: bool
+    no_auto_resume: bool
 
 
 def parse_args() -> Args:
@@ -88,6 +89,11 @@ def parse_args() -> Args:
         action="store_true",
         help="Stop on the first failure (default: continue and report at the end).",
     )
+    parser.add_argument(
+        "--no-auto-resume",
+        action="store_true",
+        help="Pass --no-auto-resume to train.py so failed partial runs restart cleanly unless best.pt exists.",
+    )
     namespace = parser.parse_args()
     return Args(
         seeds=tuple(namespace.seeds),
@@ -95,6 +101,7 @@ def parse_args() -> Args:
         dry_run=namespace.dry_run,
         extra_overrides=tuple(namespace.override),
         fail_fast=namespace.fail_fast,
+        no_auto_resume=bool(namespace.no_auto_resume),
     )
 
 
@@ -150,7 +157,7 @@ def _run(cmd: list[str], dry_run: bool) -> int:
     return completed.returncode
 
 
-def _train_command(config: str, seed: int, extra: tuple[str, ...]) -> list[str]:
+def _train_command(config: str, seed: int, extra: tuple[str, ...], no_auto_resume: bool) -> list[str]:
     cmd = [
         "python3",
         str(ROOT / "train.py"),
@@ -161,6 +168,8 @@ def _train_command(config: str, seed: int, extra: tuple[str, ...]) -> list[str]:
     ]
     if extra:
         cmd.extend(extra)
+    if no_auto_resume:
+        cmd.append("--no-auto-resume")
     return cmd
 
 
@@ -217,6 +226,7 @@ def _train_runs(
     extra: tuple[str, ...],
     dry_run: bool,
     fail_fast: bool,
+    no_auto_resume: bool,
     failures: list[str],
 ) -> None:
     print(f"\n========== {label} ({len(configs)} configs x {len(seeds)} seeds = {len(configs) * len(seeds)} runs) ==========")
@@ -227,7 +237,7 @@ def _train_runs(
             if not dry_run and _has_best_checkpoint(experiment, run_name):
                 print(f"[skip] {run_name} (best.pt already exists)")
             else:
-                cmd = _train_command(config, seed, extra + (f"experiment.run_name={run_name}",))
+                cmd = _train_command(config, seed, extra + (f"experiment.run_name={run_name}",), no_auto_resume)
                 rc = _run(cmd, dry_run)
                 if rc != 0:
                     failures.append(f"{label}: {config} seed={seed}")
@@ -322,13 +332,13 @@ def main() -> None:
     failures: list[str] = []
 
     if "ablations" not in args.skip:
-        _train_runs("KVASIR ABLATIONS (A1-A7)", ABLATION_CONFIGS, args.seeds, args.extra_overrides, args.dry_run, args.fail_fast, failures)
+        _train_runs("KVASIR ABLATIONS (A1-A7)", ABLATION_CONFIGS, args.seeds, args.extra_overrides, args.dry_run, args.fail_fast, args.no_auto_resume, failures)
 
     if "main_results" not in args.skip:
-        _train_runs("MAIN RESULTS (ClinicDB, ISIC2018)", MAIN_RESULTS_CONFIGS, args.seeds, args.extra_overrides, args.dry_run, args.fail_fast, failures)
+        _train_runs("MAIN RESULTS (ClinicDB, ISIC2018)", MAIN_RESULTS_CONFIGS, args.seeds, args.extra_overrides, args.dry_run, args.fail_fast, args.no_auto_resume, failures)
 
     if "baselines" not in args.skip:
-        _train_runs("U-NET BASELINES", BASELINE_CONFIGS, args.seeds, args.extra_overrides, args.dry_run, args.fail_fast, failures)
+        _train_runs("U-NET BASELINES", BASELINE_CONFIGS, args.seeds, args.extra_overrides, args.dry_run, args.fail_fast, args.no_auto_resume, failures)
 
     if "generalization" not in args.skip:
         _generalization_eval(args, failures)

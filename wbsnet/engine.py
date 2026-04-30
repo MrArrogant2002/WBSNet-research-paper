@@ -154,21 +154,34 @@ def _finish_optimizer_step(
     optimizer: torch.optim.Optimizer,
     scaler: GradScaler,
     clip_grad_norm: float,
-) -> None:
+    nonfinite_grad_action: str,
+) -> bool:
     scaler.unscale_(optimizer)
+    should_skip = False
     if clip_grad_norm > 0:
-        torch.nn.utils.clip_grad_norm_(
+        total_norm = torch.nn.utils.clip_grad_norm_(
             model.parameters(),
             max_norm=clip_grad_norm,
-            error_if_nonfinite=True,
+            error_if_nonfinite=False,
         )
+        should_skip = not torch.isfinite(total_norm).all()
     else:
         for parameter in model.parameters():
             if parameter.grad is not None and not torch.isfinite(parameter.grad).all():
-                raise FloatingPointError("Non-finite gradient detected before optimizer step.")
+                should_skip = True
+                break
+
+    if should_skip:
+        optimizer.zero_grad(set_to_none=True)
+        scaler.update()
+        if nonfinite_grad_action == "skip":
+            return False
+        raise FloatingPointError("Non-finite gradient detected before optimizer step.")
+
     scaler.step(optimizer)
     scaler.update()
     optimizer.zero_grad(set_to_none=True)
+    return True
 
 
 def run_epoch(
@@ -191,6 +204,13 @@ def run_epoch(
         raise ValueError(f"train.grad_accum_steps must be >= 1, got {grad_accum_steps}.")
     boundary_weight = float(config["train"].get("boundary_loss_weight", 0.5))
     clip_grad_norm = float(config["train"].get("clip_grad_norm", 0.0))
+    nonfinite_grad_action = str(config["train"].get("nonfinite_grad_action", "error")).lower()
+    if nonfinite_grad_action not in {"error", "skip"}:
+        raise ValueError(
+            "train.nonfinite_grad_action must be either 'error' or 'skip', "
+            f"got {nonfinite_grad_action!r}."
+        )
+    max_nonfinite_grad_steps = int(config["train"].get("max_nonfinite_grad_steps", 0))
     threshold = float(config["evaluation"].get("threshold", 0.5))
     meter = BinarySegmentationMeter(
         threshold=threshold,
@@ -200,6 +220,7 @@ def run_epoch(
     )
     loss_totals = {"segmentation_loss": 0.0, "boundary_loss": 0.0, "total_loss": 0.0}
     loss_steps = 0
+    skipped_optimizer_steps = 0
     captured_images: list[dict[str, Any]] = []
     should_log_images = (
         (not training)
@@ -244,12 +265,23 @@ def run_epoch(
             if training and optimizer is not None:
                 scaler.scale(scaled_loss).backward()
                 if step % grad_accum_steps == 0:
-                    _finish_optimizer_step(
+                    optimizer_stepped = _finish_optimizer_step(
                         model=model,
                         optimizer=optimizer,
                         scaler=scaler,
                         clip_grad_norm=clip_grad_norm,
+                        nonfinite_grad_action=nonfinite_grad_action,
                     )
+                    if not optimizer_stepped:
+                        skipped_optimizer_steps += 1
+                        if (
+                            max_nonfinite_grad_steps > 0
+                            and skipped_optimizer_steps > max_nonfinite_grad_steps
+                        ):
+                            raise FloatingPointError(
+                                "Exceeded train.max_nonfinite_grad_steps="
+                                f"{max_nonfinite_grad_steps} at epoch={epoch + 1}."
+                            )
 
         meter.update(
             output["logits"].detach(), masks.detach(), float(loss.detach().item())
@@ -278,15 +310,25 @@ def run_epoch(
                 )
 
     if training and optimizer is not None and len(loader) % grad_accum_steps != 0:
-        _finish_optimizer_step(
+        optimizer_stepped = _finish_optimizer_step(
             model=model,
             optimizer=optimizer,
             scaler=scaler,
             clip_grad_norm=clip_grad_norm,
+            nonfinite_grad_action=nonfinite_grad_action,
         )
+        if not optimizer_stepped:
+            skipped_optimizer_steps += 1
+            if max_nonfinite_grad_steps > 0 and skipped_optimizer_steps > max_nonfinite_grad_steps:
+                raise FloatingPointError(
+                    "Exceeded train.max_nonfinite_grad_steps="
+                    f"{max_nonfinite_grad_steps} at epoch={epoch + 1}."
+                )
 
     metrics = meter.compute(distributed_state)
     metrics.update(_mean_scalar_dict(loss_totals, loss_steps))
+    if training:
+        metrics["skipped_optimizer_steps"] = float(skipped_optimizer_steps)
     if should_log_images and captured_images:
         logger.log_panel_images(
             f"{split_name or 'val'}/paper_panels", captured_images, step=epoch

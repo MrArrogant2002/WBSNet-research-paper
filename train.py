@@ -37,6 +37,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", required=True, help="Path to a YAML config.")
     parser.add_argument("--override", nargs="*", default=[], help="Config overrides in key=value form.")
     parser.add_argument("--resume", default=None, help="Optional checkpoint to resume from.")
+    parser.add_argument(
+        "--no-auto-resume",
+        action="store_true",
+        help="Do not automatically resume from checkpoints/last.pt when --resume is not provided.",
+    )
     return parser.parse_args()
 
 
@@ -129,7 +134,7 @@ def main() -> None:
     )
     checkpoint_dir = ensure_dir(output_dir / "checkpoints")
     resume_path = Path(args.resume) if args.resume else checkpoint_dir / "last.pt"
-    will_resume = resume_path.exists()
+    will_resume = resume_path.exists() and (bool(args.resume) or not args.no_auto_resume)
     logger = ExperimentLogger(
         output_dir=output_dir,
         config=config,
