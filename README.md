@@ -28,6 +28,33 @@ The fastest way to reproduce the paper results end-to-end:
 
    This trains 7 ablation variants on Kvasir + full WBSNet on ClinicDB & ISIC2018 + 3 U-Net baselines, then runs the Kvasir → CVC-ColonDB generalization eval, then aggregates everything. Re-running with additional seeds skips already-completed runs (idempotent).
 
+### Reuse legacy Kaggle seed-3407 outputs
+
+If you already have the Kaggle-style `wbsnet_paper_runs/` folder from the first seed, import it before launching the Colab paper run:
+
+```bash
+python3 scripts/import_legacy_paper_runs.py \
+    --legacy-root /content/drive/MyDrive/wbsnet_paper_runs \
+    --output-root outputs \
+    --verify-forward
+```
+
+This imports the reusable seed-3407 artifacts into the current `outputs/` layout and adapts the old checkpoint key names. The current runner will then skip the completed Kvasir and CVC-ClinicDB seed-3407 runs, keep the ISIC2018 U-Net baseline, and train the missing ISIC2018 WBSNet seed-3407 run.
+
+Then launch the planned continuation:
+
+```bash
+python3 scripts/run_paper_optionA.py \
+    --seeds 3407 3408 3409 \
+    --override train.batch_size=16 train.grad_accum_steps=1 \
+               dataset.split_strategy=pre_split_dirs \
+               dataset.num_workers=2 dataset.prefetch_factor=2 \
+               runtime.device=cuda runtime.wandb.mode=offline \
+               evaluation.max_visualizations=8
+```
+
+Seed `3407` is the Kaggle first seed. Seeds `3408` and `3409` are independent paper-run seeds, not continuations of seed `3407`.
+
 ## Execution Model
 
 This repo is prepared for the script-based Colab A100 workflow. Colab is used only as the control surface for cloning the repo, mounting Drive, installing dependencies, and launching commands. Training, evaluation, prediction export, aggregation, significance tests, and complexity checks run through versioned Python files.

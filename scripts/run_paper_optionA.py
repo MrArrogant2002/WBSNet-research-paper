@@ -248,6 +248,10 @@ def _generalization_eval(args: Args, failures: list[str]) -> None:
             print(f"[warn] {msg}")
             failures.append(f"generalization: {msg}")
             continue
+        metrics_path = ROOT / "outputs" / kvasir_experiment / run_name / "evaluation" / "CVC-ColonDB_all.json"
+        if not args.dry_run and metrics_path.exists():
+            print(f"[skip] generalization {run_name} (CVC-ColonDB/all)")
+            continue
         cmd = [
             "python3",
             str(ROOT / "evaluate.py"),
