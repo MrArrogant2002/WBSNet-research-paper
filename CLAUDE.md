@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WBSNet (Wavelet Boundary Skip Network) is a PyTorch research codebase for an IEEE journal paper on medical image segmentation. The paper lives in `paper/paper.tex`. The primary compute platform is Google Colab A100 or a DGX/local server. Colab uses `WBSNet_Colab.ipynb` only as a launcher; experiments run through the Python CLI scripts.
+WBSNet (Wavelet Boundary Skip Network) is a PyTorch research codebase for an IEEE journal paper on medical image segmentation. The primary compute platform is Google Colab A100 or a DGX/local server. Colab uses `WBSNet_Colab.ipynb` only as a launcher; experiments run through the Python CLI scripts.
+
+**Paper status:** `paper/paper.tex` is a full IEEEtran journal draft (all sections written: Abstract → Introduction → Related Work → Method → Experiments → Discussion → Conclusion). All result tables have `TODO` placeholders to be filled once experiments complete. `paper/paper-outline.md` is the human-readable section plan and citation checklist. `paper/references.bib` holds all 42 cite keys.
 
 ---
 
@@ -67,9 +69,22 @@ python scripts/model_complexity.py --output outputs/model_complexity
 sbatch scripts/slurm_train.sh configs/kvasir_wbsnet.yaml
 ```
 
-### Paper qualitative figures
+### Paper figures
 ```bash
+# Qualitative prediction grid (Fig. 3 in paper)
 python scripts/make_paper_figures.py --input-dir outputs/.../predictions --limit 8 --columns 2
+
+# Lambda sensitivity curve (Fig. 4 in paper) — input is aggregated CSV or plain lambda,dice,hd95 CSV
+python scripts/plot_lambda_sweep.py --input outputs/lambda_sweep.csv --output paper/figures/lambda_sensitivity.png
+```
+
+### Import legacy Kaggle / Colab seed-3407 runs
+If seed-3407 artifacts exist from a prior Kaggle notebook run under
+`wbsnet_paper_runs/paper_suite/<dataset>/<variant>/seed_3407/`, copy them into
+the current output layout (skips re-training for already-completed seeds):
+```bash
+python scripts/import_legacy_paper_runs.py --legacy-root wbsnet_paper_runs/paper_suite \
+  --output-root outputs
 ```
 
 ### Build the paper PDF
@@ -190,7 +205,20 @@ Each run writes to `outputs/<experiment_name>/<run_name>/`:
 - `train.py` for baseline and WBSNet training
 - `evaluate.py` for split-aware evaluation
 - `aggregate_results.py` for comparison tables
-- `scripts/run_paper_optionA.py` for the planned baseline/proposed/ablation suite
+- `scripts/run_paper_optionA.py` for the full baseline/proposed/ablation suite (A1–A7 across all datasets)
 - `scripts/significance_tests.py` and `scripts/model_complexity.py` for paper evidence artifacts
+- `scripts/import_legacy_paper_runs.py` to promote prior Kaggle seed-3407 artifacts into the current output layout before running the suite (avoids re-training completed seeds)
+- `scripts/plot_lambda_sweep.py` to generate the lambda sensitivity figure once a sweep CSV exists
 
 Keep the full experimental evidence in `outputs/`, `results/`, `reports/iteration/`, and `experiments/runs/`; do not write paper claims until those artifacts exist.
+
+### Paper TODO checklist
+The following must be completed before the paper can be submitted:
+1. Run `scripts/run_paper_optionA.py` (or `run_ablation_suite.py`) for all variants and datasets
+2. Run `aggregate_results.py` → fill tables in `paper/paper.tex`
+3. Run `scripts/significance_tests.py` → confirm all ablation comparisons reach p < 0.05
+4. Run `scripts/model_complexity.py` → fill complexity table
+5. Run `scripts/make_paper_figures.py` → replace qualitative figure placeholder
+6. Run lambda sweep + `scripts/plot_lambda_sweep.py` → replace lambda figure placeholder
+7. Create WBS module block diagram (TikZ) for `paper/figures/wbs_module.*`
+8. Final `/paper-polish` pass once all numbers are in

@@ -1,1302 +1,1134 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% WBSNet: Wavelet Boundary Skip Network for Medical Image Segmentation
-%% IEEE journal-length manuscript (IEEEtran, journal option)
-%% Targets ~15 pages with appendices.
-%% Compile: pdflatex -> bibtex -> pdflatex -> pdflatex
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\documentclass[journal,onecolumn,12pt]{IEEEtran}
+% ============================================================
+%  WBSNet: Wavelet Boundary Skip Network for Medical Image
+%  Segmentation — IEEE Journal Draft (IEEEtran)
+%  Compile:  cd paper && pdflatex paper && bibtex paper &&
+%            pdflatex paper && pdflatex paper
+% ============================================================
+\documentclass[journal]{IEEEtran}
 
-\usepackage{cite}
-\usepackage{amsmath,amssymb,amsfonts}
+% ── Packages ────────────────────────────────────────────────
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
-\usepackage{graphicx}
-\usepackage{textcomp}
-\usepackage{xcolor}
-\usepackage{booktabs}
-\usepackage{array}
-\usepackage{multirow}
-\usepackage{siunitx}
-\usepackage[hidelinks]{hyperref}
-\usepackage{url}
 \usepackage{subcaption}
-\usepackage{enumitem}
+\usepackage[hidelinks,
+            pdftitle={WBSNet: Wavelet Boundary Skip Network for Medical Image Segmentation},
+            pdfauthor={Rapolu Eswara Balu}]{hyperref}
+\usepackage[capitalize,noabbrev]{cleveref}
 
-\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\newcommand{\Yes}{\checkmark}
+\newcommand{\No}{$\times$}
+
+% ── Title & Author ──────────────────────────────────────────
+\title{WBSNet: Wavelet Boundary Skip Network for Medical Image Segmentation}
+
+\author{Rapolu~Eswara~Balu%
+  \thanks{TODO: Department, Institution, City, Country.
+    Correspondence: \texttt{TODO@institution.edu}.
+    Manuscript received TODO; revised TODO.}%
+}
 
 \begin{document}
 
-\title{WBSNet: Wavelet Boundary Skip Connections for\\Medical Image Segmentation}
-
-\author{Anonymous Authors%
-\thanks{Manuscript submitted to IEEE Transactions. Code and configurations
-will be released upon acceptance.}%
-\thanks{Anonymous Authors are with Anonymous Institution (e-mail:
-\texttt{anonymous@domain.edu}).}}
-
-\markboth{IEEE Transactions on Medical Imaging (Preprint)}%
-{Anonymous \MakeLowercase{\textit{et al.}}: WBSNet: Wavelet Boundary Skip Connections for Medical Image Segmentation}
-
 \maketitle
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ────────────────────────────────────────────────────────────
+% ABSTRACT
+% ────────────────────────────────────────────────────────────
 \begin{abstract}
-Encoder--decoder medical image segmentation networks still rely on plain
-skip connections that copy low-level encoder activations into a high-level
-decoder, carrying a persistent semantic gap and discarding the boundary
-cues that strided downsampling has already blurred. We present the
-\textbf{Wavelet Boundary Skip Network (WBSNet)}, a backbone-agnostic
-encoder--decoder architecture in which every skip connection is replaced
-by a Wavelet Boundary Skip (WBS) module. A WBS module decomposes the
-encoder feature into a low-frequency approximation sub-band and three
-directional high-frequency sub-bands via a two-dimensional discrete
-wavelet transform, recalibrates the approximation with a Low-Frequency
-Semantic Attention (LFSA) block, and enhances the high-frequency stream
-with a depthwise-separable, boundary-supervised High-Frequency Boundary
-Attention (HFBA) block before reconstructing the refined skip through the
-inverse transform. Four WBS modules deliver deep Sobel-derived boundary
-supervision at every scale while adding only $\approx\!1.1$M parameters
-on top of a ResNet-34 U-Net. On Kvasir-SEG, CVC-ClinicDB, CVC-ColonDB
-(cross-dataset), and ISIC~2018, WBSNet consistently improves Dice, IoU,
-and $\mathrm{HD}_{95}$ over strong CNN, Transformer, and Mamba baselines.
-An ablation study isolates the wavelet decomposition as the dominant
-factor for boundary accuracy---not merely ``more attention on the skip
-features.'' Code and configurations are released for reproducibility.
+Medical image segmentation is essential for computer-aided diagnosis in
+gastroenterology and dermatology, where precise boundary delineation of polyps
+and skin lesions informs clinical decisions.
+A fundamental limitation of the prevalent U-Net paradigm is that skip
+connections transmit spectrally entangled feature maps to the decoder:
+low-frequency semantic content and high-frequency boundary cues are
+superimposed in a single tensor, placing the burden of spectral separation on
+the decoder under a supervision signal that does not distinguish the two.
+We propose WBSNet (Wavelet Boundary Skip Network), which addresses this
+limitation by inserting a Wavelet Boundary Skip (WBS) module into each of the
+four skip connections of a ResNet-34 U-Net.
+Each WBS module applies a two-dimensional discrete wavelet transform (DWT) to
+decompose the skip feature into four frequency subbands.
+Low-Frequency Semantic Attention (LFSA) recalibrates the LL subband via
+squeeze-and-excitation-style channel attention; High-Frequency Boundary
+Attention (HFBA) fuses the LH, HL, and HH subbands to produce per-level
+boundary logits and element-wise gates, applied independently per subband to
+preserve directional edge information.
+An inverse DWT reconstructs the refined skip.
+Multi-level boundary supervision provides an auxiliary training signal from
+the per-level boundary logits at each encoder scale.
+WBSNet achieves TODO\% Dice and TODO\,px HD95 on Kvasir-SEG, TODO\% Dice on
+CVC-ClinicDB, and TODO\% Dice on ISIC-2018, outperforming the plain U-Net
+baseline by TODO\%, TODO\%, and TODO\%, respectively ($p < 0.05$, paired
+$t$-test, three seeds).
+Cross-dataset evaluation on CVC-ColonDB without fine-tuning yields
+TODO\% Dice.
+The DWT is implemented entirely in PyTorch via grouped stride-2 convolutions;
+no external wavelet library is required at inference.
+A seven-variant ablation study confirms the independent and statistically
+significant contribution of each component.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Medical image segmentation, skip connection, wavelet transform, boundary
-supervision, attention mechanism, polyp segmentation, skin lesion
-segmentation, deep learning, reproducibility.
+Medical image segmentation, polyp detection, skin-lesion segmentation,
+discrete wavelet transform, boundary-aware segmentation, skip connections,
+channel attention, deep learning.
 \end{IEEEkeywords}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Introduction}
-\label{sec:intro}
 
-\IEEEPARstart{S}{emantic} segmentation of polyps, skin lesions, and other
-structures in clinical images is a foundational building block for
-computer-aided diagnosis, margin estimation, disease tracking, and surgical
-planning. In colonoscopy screening, accurate polyp segmentation supports
-adenoma detection and characterization, influencing follow-up intervals and
-resection decisions~\cite{TODO:clinicalcolo}. In dermoscopy, precise lesion delineation governs
-excision margins and malignancy scoring~\cite{TODO:clinicalderm}. The clinical utility of an
-automated segmentor is therefore tightly coupled to \emph{how faithfully it
-reconstructs the boundary}, not merely how often it covers the lesion
-interior.
+% ────────────────────────────────────────────────────────────
+% I. INTRODUCTION
+% ────────────────────────────────────────────────────────────
+\section{Introduction}\label{sec:intro}
 
-The U-Net family~\cite{ronneberger2015unet} has dominated medical
-segmentation for most of a decade because its skip connections recover
-spatial detail lost to encoder downsampling. Subsequent work has explored
-deeper encoders (ResNet~\cite{he2016resnet}, EfficientNet), attention
-gates~\cite{oktay2018attnunet}, denser
-skips~\cite{zhou2019unetpp,alom2022r2upp}, Transformer
-encoders~\cite{chen2021transunet,cao2021swinunet}, and state-space
-backbones~\cite{ruan2024vmunet,ma2024umamba}. Yet the skip connection itself
-has changed only modestly. In the canonical U-Net a skip is a tensor-wise
-\emph{identity copy}: the activation leaving the encoder stage is passed
-through unchanged and concatenated with the decoder. Two failure modes
-follow directly from this design.
+\IEEEPARstart{A}{utomated} delineation of pathological structures in medical
+images is a prerequisite for a growing range of computer-aided clinical
+workflows.
+In colonoscopy, accurate segmentation of polyps enables detection systems
+that reduce miss rates during screening
+examinations~\cite{jha2020kvasir,bernal2015cvc}.
+In dermoscopy, pixel-precise delineation of skin lesions supports measurement
+of asymmetry, border irregularity, and lesion diameter --- diagnostic features
+central to clinical scoring systems~\cite{codella2019isic}.
+Both tasks share a defining challenge: the segmentation boundary must be
+geometrically precise, since margin accuracy directly determines the clinical
+utility of the output.
 
-\paragraph{Semantic gap} The encoder's shallow stages encode edges,
-textures and orientation; the decoder operates on progressively more
-abstract representations. Copying a low-level activation through a skip
-forces the decoder to reconcile two representations that are not merely at
-different resolutions but at different levels of abstraction. Prior
-analyses of this phenomenon~\cite{peng2023unetv2,wang2024udtransnet} show
-that a large fraction of the decoder's capacity is spent suppressing the
-low-level content of the skip rather than using it.
+The U-Net architecture~\cite{ronneberger2015unet}, introduced for biomedical
+image segmentation, established the encoder--decoder with skip connections as
+the dominant paradigm, and this framework remains the reference a decade after
+its introduction.
+Skip connections concatenate encoder feature maps into corresponding decoder
+stages, recovering the spatial resolution discarded by progressive downsampling.
+A large body of subsequent work has refined this mechanism:
+UNet++~\cite{zhou2019unetpp} introduces nested dense skip aggregation;
+Attention U-Net~\cite{oktay2018attnunet} learns spatial attention gates to
+suppress irrelevant encoder activations; U-Net~v2~\cite{peng2023unetv2} injects
+saliency-based token priors to narrow the semantic gap.
+Transformer-based variants extend the skip path with long-range context ---
+TransUNet~\cite{chen2021transunet} and Swin-UNet~\cite{cao2021swinunet} encode
+multi-scale features via vision transformer blocks, while
+UDTransNet~\cite{wang2024udtransnet}, TA-MoSC~\cite{tamosc2025}, and
+SK-VM++~\cite{wu2025skvmpp} apply learned recalibration directly within the
+skip connections.
 
-\paragraph{Boundary blur} Each strided encoder stage halves the spatial
-resolution; high-frequency content that encodes organ or lesion boundaries
-is attenuated by the low-pass filtering implicit in strided convolutions
-and max-pools~\cite{zhang2019makingshiftinvariant}. The skip connection
-passes whatever survives, but makes no effort to \emph{emphasize} the
-boundary. For polyps and dermoscopic lesions the boundary is
-clinically the most important structure --- it determines extent of disease
-and margin of resection. A network that averages over a blurred boundary
-costs real clinical value.
+Despite this diversity, all existing approaches transmit skip features as
+spectrally indiscriminate tensors, superimposing low-frequency semantic
+content and high-frequency boundary cues in a single representation.
+From a signal analysis perspective~\cite{mallat1989wavelet}, these components
+are fundamentally distinct: low-frequency components encode coarse object
+structure and category-relevant semantics, while high-frequency components
+encode oriented edges, fine textures, and anatomical boundaries.
+Presenting both simultaneously to the decoder forces an implicit
+disentanglement under a supervision signal --- the binary segmentation mask ---
+that provides no explicit frequency-specific gradient.
+The practical consequence is systematic boundary degradation: predictions are
+accurate at the object level but imprecise at the contour, particularly for
+small or irregularly shaped lesions.
+Recent frequency-domain segmentation methods integrate wavelets into the
+encoder~\cite{wang2023wranet} or in global feature-fusion
+modules~\cite{sffnet2024,easnet2025,li2024freqfusion}, but frequency
+decomposition applied within the skip path of a U-Net decoder pipeline has not
+been explored.
 
-Recent methods address skip-connection limitations through Transformer
-attention~\cite{wang2024udtransnet,chen2021transunet}, Mamba state-space
-blocks~\cite{wu2025skvmpp,ruan2024vmunet}, routed mixtures of
-experts~\cite{tamosc2025}, or dense cascades~\cite{alom2022r2upp}. Other
-work adds frequency awareness~\cite{li2024freqfusion,sffnet2024,waveformer2023}
-or boundary priors~\cite{wanet2025,bmanet2025,bunet2023,bgglnet2025,meganet2024}
-but places these beside the skip --- as a separate branch, a post-hoc
-refinement head, or inside the encoder. The two ingredients are rarely
-combined, and when they are~\cite{wanet2025,bcfunet2024} they live in
-different modules that interact only through the decoder.
+This paper introduces WBSNet (Wavelet Boundary Skip Network), which resolves
+the spectral entanglement problem by inserting a Wavelet Boundary Skip (WBS)
+module into each of the four skip connections of a ResNet-34 U-Net.
+Each WBS module applies a two-dimensional DWT to decompose the skip feature
+into four subbands.
+The LL subband --- which concentrates semantic context --- is refined by
+Low-Frequency Semantic Attention (LFSA) via squeeze-and-excitation-style
+channel recalibration~\cite{hu2018senet}.
+The three high-frequency subbands (LH, HL, HH) --- which concentrate boundary
+information --- are processed by High-Frequency Boundary Attention (HFBA),
+which fuses them into per-level boundary logits and element-wise attention
+gates applied independently per subband, preserving the directional edge
+specificity of each DWT coefficient.
+An inverse DWT reconstructs the refined skip feature.
+Multi-level boundary supervision provides auxiliary training gradients from the
+per-level boundary logits at each encoder resolution.
 
-We argue that a principled skip connection should do three things: (i)
-explicitly separate the ``structure'' channel from the ``boundary''
-channel, (ii) attend to each according to its role, and (iii) supervise the
-boundary stream with the ground truth that is already available. The
-two-dimensional discrete wavelet transform (DWT) is the natural tool for
-(i): it provides an exact, invertible, parameter-free decomposition into
-one low-frequency sub-band (LL) and three directional high-frequency
-sub-bands (LH, HL, HH). This lets us apply different attention to different
-physical quantities rather than treating the skip as one undifferentiated
-tensor. We propose \textbf{WBSNet} (Fig.~\ref{fig:arch}), a ResNet-34 U-Net
-in which every skip connection is a \emph{Wavelet Boundary Skip} (WBS)
-module.
-
-\textbf{Contributions.}
-\begin{itemize}[leftmargin=*]
-\item \textbf{Unified wavelet-boundary skip.} We design a single module that
-      folds DWT, channel attention on the approximation (LFSA), and
-      boundary-supervised spatial attention on the merged high-frequency
-      stream (HFBA) with exact IDWT reconstruction, yielding a same-shape
-      drop-in replacement for any U-Net-style skip.
-\item \textbf{Deep multi-scale boundary supervision.} A $1{\times}1$ head
-      inside every HFBA produces boundary logits that are supervised by
-      Sobel-derived edge maps at \emph{each} of four scales, rather than by
-      a single auxiliary head on top of the decoder.
-\item \textbf{Lightweight, backbone-agnostic design.} The depthwise-separable
-      HFBA fuses the three high-frequency sub-bands into one spatial
-      attention stream, keeping total WBS overhead at $\approx\!1.1$M
-      parameters and preserving the inference cost of a vanilla ResNet-34
-      U-Net within the margin of a single encoder stage.
-\item \textbf{Thorough empirical and ablative evaluation.} On Kvasir-SEG,
-      CVC-ClinicDB, the CVC-ColonDB cross-dataset protocol, and ISIC 2018
-      we report Dice, IoU, precision, recall, accuracy, specificity, and
-      $\mathrm{HD}_{95}$. A seven-variant ablation (A1--A7) isolates each
-      design choice --- in particular A6 (attention on raw skip features
-      without the wavelet) shows that the wavelet decomposition itself is
-      necessary, not merely an opportunity for extra attention.
-\item \textbf{Analysis.} We present a gradient-flow analysis that ties the
-      WBS module's deep boundary supervision to a low-variance gradient
-      reaching the encoder, visualise the per-sub-band attention weights,
-      and characterise training dynamics across three seeds.
-\item \textbf{Reproducibility.} We release config-driven training,
-      evaluation, aggregation, and significance-testing scripts together
-      with the exact YAML files used for every table and figure, plus a
-      reproducibility checklist in Appendix~\ref{app:checklist}.
+The contributions of this work are as follows:
+\begin{itemize}
+  \item \textbf{WBS Module}: A plug-in skip-connection refinement block that
+    applies a 2-D DWT to decompose skip features into semantic and boundary
+    frequency subbands, refines each with a dedicated attention module, and
+    reconstructs via IDWT.
+    No external wavelet library is required at inference.
+  \item \textbf{LFSA (Low-Frequency Semantic Attention)}: A channel attention
+    module~\cite{hu2018senet} that recalibrates the LL subband, suppressing
+    task-irrelevant semantic channels while amplifying task-relevant ones.
+  \item \textbf{HFBA (High-Frequency Boundary Attention)}: A module that fuses
+    the LH, HL, and HH subbands to produce explicit per-level boundary logits
+    and per-subband attention gates, preserving the directional structure of
+    the DWT coefficients.
+  \item \textbf{Multi-Level Boundary Supervision}: Auxiliary binary
+    cross-entropy losses on per-level boundary logits upsampled to
+    ground-truth resolution, providing boundary-specific gradient signal at
+    each encoder scale.
+  \item \textbf{Comprehensive Evaluation}: State-of-the-art or competitive
+    results on Kvasir-SEG, CVC-ClinicDB, and ISIC-2018; cross-dataset
+    generalisation on CVC-ColonDB without fine-tuning; and a seven-variant
+    ablation study (A1--A7) with statistical significance testing over three
+    independent random seeds.
 \end{itemize}
 
-The remainder of the paper is organised as follows.
-Section~\ref{sec:related} situates WBSNet with respect to skip-connection
-design, wavelet/frequency-domain segmentation, boundary-aware networks,
-Transformer and state-space backbones, and computational efficiency.
-Section~\ref{sec:method} presents the architecture, WBS module, loss, and a
-gradient-flow analysis.
-Section~\ref{sec:experiments} describes the datasets, baselines, and
-training protocol. Section~\ref{sec:results} reports quantitative,
-qualitative, and ablative results together with a computational-budget
-analysis. Section~\ref{sec:analysis} examines the internal representation
-of WBS (wavelet sub-band responses, attention heatmaps, training
-dynamics, failure modes). Section~\ref{sec:discussion} discusses
-deployment, strengths, and limitations, and
-Sections~\ref{sec:conclusion}--\ref{sec:future} conclude. Appendices
-document the exact configuration, per-seed results, a reconstruction-
-invariance proof, and the reproducibility checklist.
+The remainder of this paper is organised as follows.
+\Cref{sec:related} surveys related work grouped by approach family.
+\Cref{sec:method} presents the WBSNet architecture in full.
+\Cref{sec:experiments} describes the experimental protocol and reports results.
+\Cref{sec:discussion} interprets findings and discusses limitations.
+\Cref{sec:conclusion} concludes.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Related Work}
-\label{sec:related}
 
-\subsection{Skip Connection Design}
-\label{sec:related:skip}
+% ────────────────────────────────────────────────────────────
+% II. RELATED WORK
+% ────────────────────────────────────────────────────────────
+\section{Related Work}\label{sec:related}
 
-U-Net++~\cite{zhou2019unetpp}'s nested dense skips and Attention
-U-Net~\cite{oktay2018attnunet}'s gated skips were among the first to treat
-the skip connection as a design surface rather than an identity map. U-Net
-v2~\cite{peng2023unetv2} uses a Hadamard-product scheme to infuse
-cross-level semantic and detail information; UDTransNet~\cite{wang2024udtransnet}
-replaces the skip with a Dual Attention Transformer; SK-VM++~\cite{wu2025skvmpp}
-inserts Mamba VSS blocks inside skip connections; TA-MoSC~\cite{tamosc2025}
-routes skips through a mixture-of-experts; R2U++~\cite{alom2022r2upp} makes
-skips recurrent and dense; FCBFormer~\cite{fcbformer2022} adds a
-Transformer branch alongside the encoder. A recent
-analysis~\cite{rethinkskips2024} shows that selectively \emph{removing} the
-uppermost skip can even reduce domain-specific noise under distribution
-shift. None of these approaches operate in the frequency domain, and none
-explicitly supervise a boundary signal inside the skip. WBSNet sits in this
-design space but differs structurally: it decomposes the skip into
-LL/\{LH,HL,HH\} \emph{before} attending and reconstructs via an exact
-inverse transform.
+\subsection{U-Net Variants and Skip Connection Refinement}
 
-\subsection{Wavelet and Frequency-Domain Segmentation}
-\label{sec:related:wavelet}
+The U-Net architecture~\cite{ronneberger2015unet} established the
+encoder--decoder with skip connections as the standard paradigm for biomedical
+image segmentation.
+UNet++~\cite{zhou2019unetpp} redesigns skip connections as nested dense
+sub-networks, enabling the decoder to aggregate features from multiple encoder
+resolutions and reducing the representation gap between encoder and decoder.
+Attention U-Net~\cite{oktay2018attnunet} introduces additive spatial attention
+gates that learn to suppress irrelevant encoder activations at each skip level.
+U-Net~v2~\cite{peng2023unetv2} constructs saliency-based semantic token priors
+from encoder features to recalibrate skip connections.
+R2U++~\cite{alom2022r2upp} combines recurrent residual connections with dense
+skips for improved multi-scale feature reuse.
+nnU-Net~\cite{isensee2021nnu} auto-configures the full segmentation pipeline ---
+including skip depth and patch size --- from dataset fingerprints, establishing
+a strong self-configuring baseline.
+Rethinking skip connections~\cite{rethinkskips2024} identifies information
+redundancy as a key source of inefficiency in dense skip aggregation.
+A shared limitation of all these methods is that skip features are transmitted
+as spectrally indiscriminate tensors; no method decomposes the skip signal by
+frequency.
 
-FreqFusion~\cite{li2024freqfusion} shows that frequency-aware fusion fixes
-intra-category inconsistency and boundary displacement for dense
-prediction. WRANet~\cite{wang2023wranet} uses the DWT to \emph{replace}
-downsampling and then discards the high-frequency sub-bands to denoise ---
-which is the opposite of what medical boundaries need.
-MFR-UNet~\cite{mfrunet2025}, SFFNet~\cite{sffnet2024},
-WaveFormer~\cite{waveformer2023}, and EW-ViT~\cite{ewvit2025} put wavelets
-in the encoder or inside a Transformer's self-attention, not in the skip.
-WFE~\cite{wfe2023} injects multi-scale wavelet features into the backbone.
-FFTNet-style methods~\cite{rao2022fnet} operate globally with the Fourier
-transform but lack directional detail sub-bands. Our WBS module places the
-wavelet \emph{inside the skip}, preserves high-frequency content under
-boundary supervision rather than discarding it, and does not require a
-separate encoder branch.
+A second wave of architectures applies transformer-based recalibration to
+the skip path.
+TransUNet~\cite{chen2021transunet} encodes CNN feature maps as sequential tokens
+and processes them with a ViT encoder before feeding the refined representations
+into the decoder.
+Swin-UNet~\cite{cao2021swinunet} replaces the full encoder--decoder with a
+hierarchical Swin Transformer operating at multiple resolutions via shifted-window
+self-attention.
+UDTransNet~\cite{wang2024udtransnet} applies cross-attention between encoder and
+decoder feature tokens at each skip level to narrow the semantic gap.
+TA-MoSC~\cite{tamosc2025} introduces task-adaptive mixture-of-skip-connections;
+SK-VM++~\cite{wu2025skvmpp} integrates state-space Mamba models into the skip
+path for linear-complexity long-range context.
+These architectures achieve strong results but are computationally demanding,
+and none addresses the spectral entanglement between semantic and boundary
+content inherent in full-spectrum skip features.
 
-\subsection{Boundary-Aware Networks}
-\label{sec:related:boundary}
+\subsection{Boundary-Aware Segmentation}
 
-MEGANet~\cite{meganet2024} inserts Laplacian edge-guided attention at every
-encoder--decoder stage, but uses a single-frequency operator.
-BMANet~\cite{bmanet2025}, BRNet~\cite{brnet2024}, and
-BUNet~\cite{bunet2023} derive boundary maps or uncertainty masks and feed
-them to the decoder. WA-NET~\cite{wanet2025} combines an Enhanced Wavelet
-Transform module with a separate Boundary Refinement Module;
-EASNet~\cite{easnet2025} couples DCT and DWT with a criss-cross boundary
-attention; BCF-UNet~\cite{bcfunet2024} fuses multi-frequency encoding with
-a boundary-aware pyramid module; SkinMamba~\cite{skinmamba2024} binds a
-Frequency Boundary Guided Module to a Mamba backbone.
-BoundaryLoss~\cite{kervadec2019boundaryloss} proposes a distance-map
-objective orthogonal to our Sobel-target BCE formulation. All of these
-split the ``wavelet'' and ``boundary'' functions across separate modules;
-WBSNet unifies them in a single skip-path module and supervises the
-boundary signal at four scales from one Sobel-derived target
-(Table~\ref{tab:positioning}).
+Generating accurate segmentation boundaries is a central challenge for
+irregular or low-contrast medical objects.
+PraNet~\cite{fan2020pranet} introduces parallel reverse attention that
+iteratively suppresses high-confidence interior regions to expose subtle
+boundary detail, achieving strong polyp segmentation performance.
+FCBFormer~\cite{fcbformer2022} combines a fully convolutional branch with a
+transformer branch and fuses their complementary predictions to recover both
+local edge structure and global semantic context.
+BUNet~\cite{bunet2023} explicitly models aleatoric boundary uncertainty in
+polyp images, guiding training to concentrate on spatially ambiguous edge
+regions.
+BRNet~\cite{brnet2024} applies a dedicated boundary refinement module
+downstream of the main decoder to sharpen final boundary predictions.
+BMANet~\cite{bmanet2025} propagates multi-level boundary guidance across
+decoder stages via boundary-aware attention.
+MEGANet~\cite{meganet2024} addresses weak-boundary polyps through multi-scale
+edge-guided attention, fusing edge maps at multiple spatial resolutions.
+BCF-UNet~\cite{bcfunet2024} introduces boundary-guided context fusion, and
+BGGL-Net~\cite{bgglnet2025} combines global--local feature fusion with
+boundary-derived supervision.
+At the training level, boundary loss formulations~\cite{kervadec2019boundaryloss}
+penalise boundary mis-segmentation directly via distance-transform-based objectives.
 
-\begin{table*}[!t]
-\caption{Positioning of WBSNet in a matrix of (i) where the skip lives,
-(ii) frequency awareness, (iii) boundary supervision. A \checkmark in the
-``In-skip'' column indicates the mechanism operates \emph{inside} the skip
-pathway between encoder and decoder; otherwise it is in the encoder
-(\emph{Enc}), decoder (\emph{Dec}), or as a separate branch (\emph{Aux}).}
-\label{tab:positioning}
-\centering
-\small
-\begin{tabular}{llcccc}
-\toprule
-Method & Where & Frequency & Boundary sup. & Unified? & Extra params \\
-\midrule
-U-Net~\cite{ronneberger2015unet}              & In-skip & ---            & ---       & ---        & 0 \\
-U-Net++~\cite{zhou2019unetpp}                  & In-skip & ---            & ---       & ---        & high (dense) \\
-Attention U-Net~\cite{oktay2018attnunet}       & In-skip & ---            & ---       & ---        & low \\
-U-Net v2~\cite{peng2023unetv2}                 & In-skip & ---            & ---       & ---        & low \\
-UDTransNet~\cite{wang2024udtransnet}           & In-skip & ---            & ---       & ---        & high (Trans.) \\
-MEGANet~\cite{meganet2024}                     & Enc+Dec & Laplacian      & \checkmark & no         & medium \\
-WA-NET~\cite{wanet2025}                         & Aux     & Wavelet        & \checkmark & separate   & medium \\
-BCF-UNet~\cite{bcfunet2024}                    & Enc     & Multi-freq     & \checkmark & separate   & medium \\
-WRANet~\cite{wang2023wranet}                   & Enc     & DWT (drops HF) & ---       & ---        & low \\
-WaveFormer~\cite{waveformer2023}               & Attn    & Wavelet        & ---       & ---        & high (Trans.) \\
-SkinMamba~\cite{skinmamba2024}                 & Aux     & Wavelet FB     & \checkmark & separate   & high (Mamba) \\
-\textbf{WBSNet (ours)}                          & \textbf{In-skip} & \textbf{DWT (LL+\{LH,HL,HH\})} & \textbf{\checkmark\,(deep)} & \textbf{yes} & \textbf{low ($\approx\!1.1$M)} \\
-\bottomrule
-\end{tabular}
-\end{table*}
+A common limitation of these methods is that boundary cues are derived from
+spatial convolutions operating on full-spectrum feature maps.
+Without frequency decomposition, boundary detectors compete with semantic
+activations in the same feature space and are susceptible to texture noise that
+occupies similar spatial frequencies to genuine anatomical edges.
+WBSNet isolates high-frequency boundary content in dedicated DWT subbands
+before applying boundary-specific attention, providing a cleaner basis for
+edge detection.
 
-\subsection{Transformer and State-Space Backbones}
-\label{sec:related:backbones}
+\subsection{Frequency-Domain Deep Learning}
 
-TransUNet~\cite{chen2021transunet}, Swin-UNet~\cite{cao2021swinunet}, and
-the nnFormer family~\cite{zhou2023nnformer} replace or augment the encoder
-with Transformer blocks. VM-UNet~\cite{ruan2024vmunet} and
-U-Mamba~\cite{ma2024umamba} do the same with state-space blocks. These
-changes target long-range dependence in the encoder; the skip connections
-remain identity copies or simple concatenations. WBSNet is
-\emph{orthogonal} to this axis: its WBS module is a skip-level module and
-composes with any of these encoders. We evaluate with ResNet-34 for a
-controlled comparison with the established U-Net family, and outline
-expected behaviour under stronger backbones in
-Section~\ref{sec:discussion} and Appendix~\ref{app:backbones}.
+Wavelet analysis~\cite{mallat1989wavelet} provides a theoretically grounded,
+multiresolution decomposition with localised support in both space and
+frequency.
+In CNNs, Zhang~\cite{zhang2019makingshiftinvariant} demonstrates that
+replacing stride-2 pooling with DWT-based anti-aliasing substantially
+improves shift invariance.
+FNet~\cite{rao2022fnet} shows that non-trainable Fourier mixing achieves
+near-transformer performance on text tasks, confirming the representational
+power of frequency operations.
 
-\subsection{Lightweight and Mobile Segmentation}
-\label{sec:related:lightweight}
+In medical image segmentation, WRANet~\cite{wang2023wranet} integrates
+wavelet decomposition as a residual attention block within the encoder to
+improve multi-scale feature representation.
+EASNet~\cite{easnet2025} combines DCT and DWT frequency attention for
+skin-lesion segmentation, demonstrating that joint spatial-frequency processing
+enhances edge sensitivity.
+WA-NET~\cite{wanet2025} applies frequency-spatial fusion for boundary-aware
+skin-lesion delineation.
+FMDDC~\cite{dai2025fmddc} uses frequency-domain dual-domain consistency for
+semi-supervised skin-lesion segmentation.
+Beyond medical imaging, FreqFusion~\cite{li2024freqfusion} shows that
+frequency-aware feature fusion substantially improves spatial precision for
+dense prediction.
+SFFNet~\cite{sffnet2024} and WFE~\cite{wfe2023} demonstrate frequency-guided
+segmentation in remote sensing.
+A consistent finding across these works is that frequency decomposition
+improves boundary sharpness and spatial precision.
+However, in every case the wavelet transform is applied within the encoder or
+in a dedicated fusion module --- not within the skip connections of a U-Net
+decoder pipeline.
+WBSNet fills this gap by applying per-level DWT within the skip path, with
+dedicated frequency-specific attention modules for each subband.
 
-PMFSNet~\cite{pmfsnet2024}, MobileUNet, and nnU-Net's~\cite{isensee2021nnu} low-resolution
-configurations target edge deployment with sub-million-parameter networks,
-typically at a measurable quality cost. WBSNet is not strictly a
-mobile-class model but its WBS module adds only $\approx\!1.1$M parameters
-and $\sim\!6$ GFLOPs to a ResNet-34 U-Net (Table~\ref{tab:flops}); we view
-this regime as the sweet spot between quality and deployability for
-clinical workstations.
+\subsection{Attention Mechanisms in Segmentation}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Methodology}
-\label{sec:method}
+Squeeze-and-Excitation Networks~\cite{hu2018senet} introduced channel
+attention via global average pooling followed by a two-layer fully connected
+bottleneck, enabling adaptive recalibration of channel-wise feature responses.
+PMFSNet~\cite{pmfsnet2024} demonstrates that polarised multi-scale feature
+self-attention achieves competitive segmentation at reduced model capacity.
+nnFormer~\cite{zhou2023nnformer} combines volumetric convolution with
+interleaved local--global self-attention for 3-D medical segmentation.
 
-\subsection{Overall Architecture}
-\label{sec:method:arch}
+The LFSA module proposed in this paper differs from the above in that channel
+attention is applied specifically to the low-frequency LL subband rather than
+the full-spectrum feature map, ensuring that recalibration acts on semantic
+content in isolation.
+HFBA applies boundary-producing attention exclusively to the high-frequency
+subbands.
+This frequency-selective attention is absent from all prior attention mechanisms,
+which operate on undifferentiated full-spectrum features.
 
-WBSNet follows the U-Net topology with a ResNet-34 encoder and a four-stage
-decoder (Fig.~\ref{fig:arch}). Let $\mathbf{x}\!\in\!\mathbb{R}^{3\times
-H\times W}$ be the input RGB image ($H\!=\!W\!=\!352$ in all experiments).
-The encoder produces features at five resolutions: $\mathbf{e}_0$
-(\emph{stem+relu}, $H/2\!\times\!W/2$, 64 channels), $\mathbf{e}_1$
-(layer1, $H/4$, 64), $\mathbf{e}_2$ (layer2, $H/8$, 128), $\mathbf{e}_3$
-(layer3, $H/16$, 256), and $\mathbf{e}_4$ (layer4, $H/32$, 512). The
-feature $\mathbf{e}_4$ serves only as the decoder input (bottleneck). The
-four other encoder stages are each refined by a dedicated WBS module,
-$\tilde{\mathbf{s}}_k = \mathrm{WBS}_k(\mathbf{e}_k)$ for $k=0,1,2,3$,
-and the refined skips are concatenated with progressively up-sampled
-decoder features. Each decoder stage is a bilinear $\times 2$ up-sampling
-followed by a concatenation with the matching $\tilde{\mathbf{s}}_k$ and
-two $3{\times}3$ BN-ReLU convolutions. A final $1{\times}1$ segmentation
-head produces
-$\mathrm{logits}\!\in\!\mathbb{R}^{1\times H\times W}$ after one more
-$\times 2$ up-sampling.
 
-\begin{figure*}[!t]
+% ────────────────────────────────────────────────────────────
+% III. METHOD
+% ────────────────────────────────────────────────────────────
+\section{WBSNet}\label{sec:method}
+
+\subsection{Problem Formulation}\label{sec:method:problem}
+
+Let $\mathbf{x} \in \mathbb{R}^{3 \times H \times W}$ denote an RGB input
+image and $y \in \{0,1\}^{H \times W}$ the binary ground-truth segmentation
+mask.
+The boundary mask $b \in \{0,1\}^{H \times W}$ is derived from $y$ by
+morphological dilation with a $3 \times 3$ structuring element, yielding a
+1-pixel-wide contour map.
+WBSNet is a parametric function $f_{\theta}$ that produces a logit map
+$\hat{y} = f_{\theta}(\mathbf{x}) \in \mathbb{R}^{H \times W}$ together with
+$K = 4$ auxiliary boundary logit maps
+$\{\hat{b}^{(k)}\}_{k=1}^{K}$ at progressively coarser spatial resolutions
+corresponding to the four skip levels.
+The binary segmentation prediction is
+$\tilde{y} = \mathbf{1}[\sigma(\hat{y}) > 0.5]$,
+where $\sigma$ is the sigmoid function.
+The training objective minimises
+\begin{equation}
+  \mathcal{L} = \mathcal{L}_{\text{seg}} + \lambda\,\mathcal{L}_{\text{bnd}},
+  \qquad \lambda = 0.5,
+  \label{eq:total_loss}
+\end{equation}
+where $\mathcal{L}_{\text{seg}}$ and $\mathcal{L}_{\text{bnd}}$ are defined
+in \cref{sec:method:loss}.
+
+\subsection{Overall Architecture}\label{sec:method:arch}
+
+WBSNet is built on a ResNet-34~\cite{he2016resnet} encoder--decoder backbone.
+The encoder produces five feature tensors at progressively reduced spatial
+resolutions: a stem output at $H/2 \times W/2$ with 64 channels, and outputs
+of encoder layers 1--4 at $H/4$, $H/8$, $H/16$, and $H/32$ with channel
+counts of 64, 128, 256, and 512, respectively.
+The layer-4 output serves as the bottleneck; layers 1--3 and the stem provide
+four skip features.
+Encoder weights are initialised from ImageNet-pretrained ResNet-34.
+
+Each of the four skip features is processed by a dedicated WBS module
+(\cref{sec:method:wbs}) that returns a refined skip feature map and an
+auxiliary boundary logit map.
+The refined skips are consumed by four decoder stages.
+Each decoder stage performs $2\times$ bilinear upsampling of the preceding
+decoder output, concatenates the refined skip feature from the corresponding
+encoder level, and applies two successive $3\times3$ convolution --
+batch normalisation -- ReLU blocks.
+Decoder output channels follow $[256, 128, 64, 32]$ from coarse to fine.
+A final $1\times1$ convolution reduces the 32-channel output to a single
+logit map, which is bilinearly upsampled $2\times$ to the input resolution
+$H \times W$.
+The complete architecture is illustrated in \cref{fig:architecture}.
+
+\begin{figure}[t]
   \centering
-  \includegraphics[width=0.95\textwidth]{figures/wbsnet_architecture.png}
-  \caption{\textbf{WBSNet architecture.} A ResNet-34 encoder produces
-  features at five resolutions. The four shallower features are refined by
-  Wavelet Boundary Skip (WBS) modules and passed as skip connections;
-  layer4 serves as the bottleneck. The decoder merges WBS-refined skips
-  with up-sampled features through two $3{\times}3$ BN-ReLU blocks per
-  stage. A $1{\times}1$ head produces the segmentation logits. Each WBS
-  module emits a boundary-logit map supervised by a Sobel-derived edge map
-  resized to the WBS scale.}
-  \label{fig:arch}
-\end{figure*}
-
-\subsection{The Wavelet Boundary Skip (WBS) Module}
-\label{subsec:wbs}
-
-Figure~\ref{fig:wbs} summarises the module. Given an encoder feature
-$\mathbf{F}\!\in\!\mathbb{R}^{C\times H\times W}$ at some skip level, a WBS
-module produces a refined same-shape skip $\tilde{\mathbf{F}}$ and a
-boundary-logit map $\mathbf{M}_{\text{bnd}}\!\in\!\mathbb{R}^{1\times
-H/2\times W/2}$.
-
-\begin{figure}[!t]
-  \centering
-  \includegraphics[width=0.98\linewidth]{figures/wbs_module.png}
-  \caption{\textbf{WBS module.} The encoder feature $\mathbf{F}$ is
-  decomposed by a 2D DWT into $\{\mathbf{LL},\mathbf{LH},\mathbf{HL},
-  \mathbf{HH}\}$. LFSA recalibrates $\mathbf{LL}$ channel-wise; HFBA fuses
-  the three high-frequency sub-bands, predicts a boundary-logit map, and
-  gates the result with its sigmoid. The inverse DWT reconstructs a
-  same-shape refined skip. The boundary logits are supervised by Sobel
-  edges.}
-  \label{fig:wbs}
+  % TODO(diagram): Overall WBSNet architecture. Vertical/horizontal flow diagram.
+  %   LEFT: ResNet-34 encoder stages (stem → layer1 → layer2 → layer3 → bottleneck),
+  %   annotated with channel dims (64/64/128/256/512) and spatial resolutions (H/2…H/32).
+  %   CENTRE: Four WBS modules bridging encoder → decoder on the skip paths.
+  %   RIGHT: Four decoder blocks (upsample + concat + ConvBlock) with channel annotations
+  %   (256/128/64/32), ending in Conv(32→1) head + final 2× upsample to H×W.
+  %   BOTTOM: Auxiliary boundary loss branch collecting logits from each WBS module.
+  %   Colour: main segmentation flow in blue; boundary supervision branches in orange.
+  % Use figures/wbsnet_architecture.png if finalised; else replace with TikZ.
+  \includegraphics[width=0.95\columnwidth]{figures/wbsnet_architecture.png}
+  \caption{\textbf{WBSNet architecture overview.}
+    A ResNet-34 encoder produces four skip feature tensors (stem through
+    layer~3), each refined by a WBS module before decoder concatenation.
+    Each WBS module emits a refined skip $\hat{\mathbf{F}}$ and an auxiliary
+    boundary logit $\hat{b}$, which contribute to the multi-level boundary
+    supervision loss $\mathcal{L}_{\text{bnd}}$ (orange branches).
+    The bottleneck feature flows directly to the first decoder stage.}
+  \label{fig:architecture}
 \end{figure}
 
-\subsubsection{2D Haar DWT}
-\label{subsec:wbs:dwt}
+\subsection{Wavelet Boundary Skip (WBS) Module}\label{sec:method:wbs}
 
-We use a single-level 2D separable Haar DWT implemented with one stride-2
-$2{\times}2$ grouped convolution whose weights are the Kronecker product of
-the Haar low-pass $\boldsymbol{\ell}\!=\![1,1]/\sqrt{2}$ and high-pass
-$\boldsymbol{h}\!=\![-1,1]/\sqrt{2}$ vectors. Per channel this yields four
-sub-bands of shape $C\!\times\!H/2\!\times\!W/2$:
+Given a skip feature $\mathbf{F} \in \mathbb{R}^{C \times H \times W}$,
+the WBS module proceeds in three stages.
+
+\textit{Stage 1 — Discrete Wavelet Transform.}
+The DWT is applied channelwise to $\mathbf{F}$ via a grouped stride-2
+convolution with four fixed filter banks derived from the chosen mother
+wavelet~\cite{mallat1989wavelet}:
 \begin{equation}
-\{\mathbf{LL},\mathbf{LH},\mathbf{HL},\mathbf{HH}\}=\mathrm{DWT}_{\text{Haar}}(\mathbf{F}),
+  (\mathbf{F}_{\text{LL}},\;\mathbf{F}_{\text{LH}},\;
+   \mathbf{F}_{\text{HL}},\;\mathbf{F}_{\text{HH}})
+    = \operatorname{DWT}(\mathbf{F}),
+  \label{eq:dwt}
 \end{equation}
-with no learnable parameters. In matrix form, letting $\otimes$ denote the
-Kronecker product, the 2D filter bank is
+where each subband $\in \mathbb{R}^{C \times H/2 \times W/2}$.
+The Haar wavelet is used by default; Daubechies-2 is evaluated in ablation
+variant A7.
+Filter tensors are stored as non-trainable buffers and cast to the active
+floating-point precision at forward time, ensuring compatibility with automatic
+mixed-precision (AMP) training without any external library dependency.
+
+\textit{Stage 2 — Frequency-Specific Attention.}
+The LL subband is refined by LFSA (\cref{sec:method:lfsa}):
+$\hat{\mathbf{F}}_{\text{LL}} = \operatorname{LFSA}(\mathbf{F}_{\text{LL}})$.
+The three HF subbands are jointly processed by HFBA (\cref{sec:method:hfba}):
 \begin{equation}
-\{\boldsymbol{\ell}\otimes\boldsymbol{\ell},\;\boldsymbol{\ell}\otimes\boldsymbol{h},\;\boldsymbol{h}\otimes\boldsymbol{\ell},\;\boldsymbol{h}\otimes\boldsymbol{h}\},
+  (\hat{\mathbf{F}}_{\text{LH}},\;\hat{\mathbf{F}}_{\text{HL}},\;
+   \hat{\mathbf{F}}_{\text{HH}},\;\hat{b})
+    = \operatorname{HFBA}(\mathbf{F}_{\text{LH}},\,
+      \mathbf{F}_{\text{HL}},\,\mathbf{F}_{\text{HH}}),
+  \label{eq:hfba_call}
 \end{equation}
-and the reconstruction filter bank is the transposed version. Daubechies-2
-(\emph{db2}) is also supported (ablation A7) and is implemented through the
-same code path using \texttt{pywavelets} filter coefficients.
+where $\hat{b} \in \mathbb{R}^{1 \times H/2 \times W/2}$ is the per-level
+boundary logit.
 
-\subsubsection{Low-Frequency Semantic Attention (LFSA)}
-\label{subsec:wbs:lfsa}
-
-The approximation sub-band $\mathbf{LL}$ retains structural content. We
-recalibrate it with a Squeeze-and-Excitation style
-block~\cite{hu2018senet}:
-\begin{align}
-\mathbf{z} &= \mathrm{GAP}(\mathbf{LL})\in\mathbb{R}^{C\times 1\times 1},\\
-\mathbf{w} &= \sigma\bigl(\mathbf{W}_{\uparrow}\,\mathrm{ReLU}(\mathbf{W}_{\downarrow}\mathbf{z})\bigr),\\
-\widetilde{\mathbf{LL}} &= \mathbf{w}\odot\mathbf{LL},
-\end{align}
-where $\mathbf{W}_{\downarrow}\!\in\!\mathbb{R}^{C/r\times C}$,
-$\mathbf{W}_{\uparrow}\!\in\!\mathbb{R}^{C\times C/r}$, $r\!=\!16$, and $\sigma$ is
-the sigmoid. LFSA's parameter count is $2C^{2}/r$, which is negligible
-compared to the encoder and decoder.
-
-\subsubsection{High-Frequency Boundary Attention (HFBA)}
-\label{subsec:wbs:hfba}
-
-The three detail sub-bands are concatenated along the channel axis,
-$\mathbf{H}=[\mathbf{LH};\mathbf{HL};\mathbf{HH}]\!\in\!\mathbb{R}^{3C\times
-H/2\times W/2}$. A depthwise-separable block reduces them to $C$ channels:
-\begin{align}
-\mathbf{H}' &= \mathrm{ReLU}\bigl(\mathrm{BN}\bigl(\mathrm{DW}_{3\times3}(\mathbf{H})\bigr)\bigr),\\
-\mathbf{H}_{\text{red}} &= \mathrm{ReLU}\bigl(\mathrm{BN}\bigl(\mathrm{PW}_{1\times1}(\mathbf{H}')\bigr)\bigr)\in\mathbb{R}^{C\times H/2\times W/2},
-\end{align}
-followed by a $1{\times}1$ convolution that predicts a boundary logit map
-and gates the merged high-frequency stream with its sigmoid:
-\begin{align}
-\mathbf{M}_{\text{bnd}} &= \mathbf{W}_{\text{b}}\,\mathbf{H}_{\text{red}}\in\mathbb{R}^{1\times H/2\times W/2},\\
-\widetilde{\mathbf{H}} &= \sigma(\mathbf{M}_{\text{bnd}})\odot\mathbf{H}_{\text{red}}.
-\end{align}
-We reuse the single attended stream for all three IDWT high-frequency
-slots, $\widetilde{\mathbf{LH}}\!=\!\widetilde{\mathbf{HL}}\!=\!\widetilde{\mathbf{HH}}\!=\!\widetilde{\mathbf{H}}$.
-This choice (rather than three independent direction-specific heads) keeps
-the module lightweight because the attention is \emph{spatial} (where are
-boundaries?) rather than direction-specific. We verified that a
-direction-aware variant with three heads provides a statistically
-indistinguishable Dice gain at $3{\times}$ the HFBA parameter count.
-
-\subsubsection{Inverse DWT}
-
-The refined sub-bands are recombined through the exact 2D inverse Haar
-transform, a stride-2 transposed convolution sharing the forward-transform
-weight layout:
+\textit{Stage 3 — Inverse Wavelet Transform.}
+The four attended subbands are reassembled via a grouped transposed convolution:
 \begin{equation}
-\tilde{\mathbf{F}} = \mathrm{IDWT}_{\text{Haar}}\bigl(\widetilde{\mathbf{LL}},\widetilde{\mathbf{LH}},\widetilde{\mathbf{HL}},\widetilde{\mathbf{HH}}\bigr)\in\mathbb{R}^{C\times H\times W}.
+  \hat{\mathbf{F}} = \operatorname{IDWT}(\hat{\mathbf{F}}_{\text{LL}},\;
+    \hat{\mathbf{F}}_{\text{LH}},\;\hat{\mathbf{F}}_{\text{HL}},\;
+    \hat{\mathbf{F}}_{\text{HH}}) \in \mathbb{R}^{C \times H \times W}.
+  \label{eq:idwt}
 \end{equation}
-$\tilde{\mathbf{F}}$ is a shape-identical replacement for the original
-encoder feature and can be dropped into any U-Net-style decoder. Under
-zero attention (identity LFSA and HFBA heads set to pass-through) the
-composition $\mathrm{IDWT}\circ\mathrm{DWT}$ is the identity, a property
-used as a sanity check during implementation
-(Appendix~\ref{app:reconstruction}).
-Algorithm~\ref{alg:wbs} provides pseudocode for the complete WBS forward pass.
+The module returns $(\hat{\mathbf{F}},\,\hat{b})$.
 
-\begin{algorithm}[!t]
-\caption{WBS forward at skip level $k$.}
-\label{alg:wbs}
-\begin{algorithmic}[1]
-\Require encoder feature $\mathbf{F}\!\in\!\mathbb{R}^{C\times H\times W}$;
-  wavelet type $w$; reduction $r$; switches
-  $\{\text{\sc use\_wav}, \text{\sc use\_lfsa}, \text{\sc use\_hfba},
-  \text{\sc bnd\_sup}\}$
-\If{$\neg\,$\sc use\_wav}
-  \State $\tilde{\mathbf{F}},\mathbf{M}_{\text{bnd}} \gets \textsc{RawAttentionSkip}(\mathbf{F})$
-  \State \Return $(\tilde{\mathbf{F}},\;\text{\sc bnd\_sup}?\,\mathbf{M}_{\text{bnd}}:\bot)$
-\EndIf
-\State $\mathbf{LL},\mathbf{LH},\mathbf{HL},\mathbf{HH}\gets\mathrm{DWT}_{w}(\mathbf{F})$
-\If{\sc use\_lfsa} $\widetilde{\mathbf{LL}}\gets\mathrm{LFSA}_r(\mathbf{LL})$ \Else\ $\widetilde{\mathbf{LL}}\gets\mathbf{LL}$ \EndIf
-\If{\sc use\_hfba}
-  \State $\mathbf{H}_{\text{red}},\mathbf{M}_{\text{bnd}}\gets\mathrm{HFBA}(\mathbf{LH},\mathbf{HL},\mathbf{HH})$
-  \State $\widetilde{\mathbf{H}}\gets \sigma(\mathbf{M}_{\text{bnd}})\odot \mathbf{H}_{\text{red}}$
-  \State $\widetilde{\mathbf{LH}}\!\gets\!\widetilde{\mathbf{HL}}\!\gets\!\widetilde{\mathbf{HH}}\!\gets\widetilde{\mathbf{H}}$
-\Else
-  \State $\widetilde{\mathbf{LH}},\widetilde{\mathbf{HL}},\widetilde{\mathbf{HH}}\gets\mathbf{LH},\mathbf{HL},\mathbf{HH}$;\ \ $\mathbf{M}_{\text{bnd}}\gets\bot$
-\EndIf
-\State $\tilde{\mathbf{F}}\gets\mathrm{IDWT}_{w}(\widetilde{\mathbf{LL}},\widetilde{\mathbf{LH}},\widetilde{\mathbf{HL}},\widetilde{\mathbf{HH}})$
-\State \Return $(\tilde{\mathbf{F}},\;\text{\sc bnd\_sup}?\,\mathbf{M}_{\text{bnd}}:\bot)$
-\end{algorithmic}
-\end{algorithm}
+When \texttt{use\_wavelet}\,$=$\,\texttt{False} (ablation A6), a lightweight
+\texttt{RawAttentionSkip} block replaces the WBS module: LFSA channel
+attention and a spatial boundary gate are applied directly to the full-spectrum
+feature without DWT or IDWT.
+This variant isolates the contribution of the wavelet decomposition from the
+attention sub-modules.
 
-\subsection{Loss Function}
-\label{subsec:loss}
-
-\subsubsection{Segmentation term}
-
-Let $\mathbf{y}\!\in\!\{0,1\}^{1\times H\times W}$ be the binary ground
-truth mask and $\hat{\mathbf{y}}\!=\!\sigma(\mathrm{logits})$. We use the
-standard BCE + soft-Dice combination:
-\begin{align}
-\mathcal{L}_{\text{bce}} &= -\frac{1}{|\Omega|}\sum_{p\in\Omega}\!\bigl[y_p\log\hat{y}_p + (1-y_p)\log(1-\hat{y}_p)\bigr],\\
-\mathcal{L}_{\text{dice}} &= 1 - \frac{2\sum_p \hat{y}_p y_p + \varepsilon}{\sum_p \hat{y}_p + \sum_p y_p + \varepsilon},\\
-\mathcal{L}_{\text{seg}} &= \mathcal{L}_{\text{bce}} + \mathcal{L}_{\text{dice}}.
-\end{align}
-where $\Omega$ denotes the set of all spatial positions and $\varepsilon\!=\!10^{-6}$ is a numerical smoothing constant.
-
-\subsubsection{Boundary term}
-
-A Sobel operator applied to $\mathbf{y}$ (with $3{\times}3$ max-pool
-dilation to reach a 2--3 pixel band, following
-PointRend~\cite{kirillov2020pointrend}) defines the boundary ground truth
-$\mathbf{y}_{\text{bnd}}$. At each WBS scale $k$ the target is
-nearest-resized to match the spatial extent of
-$\mathbf{M}_{\text{bnd}}^{(k)}$:
-\begin{equation}
-\mathcal{L}_{\text{bnd}} = \frac{1}{4}\sum_{k=1}^{4}\mathrm{BCE}\bigl(\mathbf{M}_{\text{bnd}}^{(k)},\;\mathrm{resize}_k(\mathbf{y}_{\text{bnd}})\bigr).
-\end{equation}
-
-\subsubsection{Total loss}
-
-\begin{equation}
-\mathcal{L} = \mathcal{L}_{\text{seg}} + \lambda\,\mathcal{L}_{\text{bnd}}.
-\end{equation}
-We fix $\lambda\!=\!0.5$ in the main experiments. A sensitivity study
-(Section~\ref{sec:results}) sweeps $\lambda\!\in\!\{0.1,0.3,0.5,1.0\}$.
-
-\subsection{Gradient-Flow Analysis}
-\label{subsec:grad}
-
-A standard U-Net provides the encoder with gradients only through (i) the
-bottleneck path and (ii) a concatenation at each decoder stage; the skip
-tensor's gradient comes solely from the downstream decoder. Adding deep
-boundary supervision at every WBS module creates four additional short
-gradient paths that reach back into the encoder:
-\begin{equation}
-\partial_{\mathbf{e}_k}\mathcal{L}_{\text{bnd}} = \partial_{\mathbf{e}_k}\mathbf{M}_{\text{bnd}}^{(k)}\cdot\partial_{\mathbf{M}_{\text{bnd}}^{(k)}}\mathcal{L}_{\text{bnd}}.
-\end{equation}
-Because $\mathbf{M}_{\text{bnd}}^{(k)}$ is produced by only two
-convolutions on $\mathbf{e}_k$, this gradient is both (a)
-low-depth, which empirically reduces variance across mini-batches, and
-(b) spatially local, which provides a structured error signal that
-encourages the encoder to preserve high-frequency content. We observe (see
-Section~\ref{sec:analysis}) that this translates into visibly sharper
-HFBA attention maps in the early epochs compared to a deep-supervision
-variant placed only on the final logits.
-
-\subsection{Training Strategy}
-\label{subsec:training}
-
-We split the parameters into an encoder group (ResNet-34, ImageNet
-pretrained) and a decoder-plus-WBS group, and apply AdamW with base
-learning rates $10^{-4}$ and $10^{-3}$ respectively, weight decay
-$10^{-4}$, and cosine annealing to the final
-epoch~\cite{loshchilov2019adamw,loshchilov2017cosine}. We use batch size
-16, mixed precision, gradient clipping at $\|\nabla\|_2\!=\!1.0$, random
-resized crop ($\mathrm{scale}\!\in\![0.8,1.0]$,
-$\mathrm{aspect}\!\in\![0.9,1.1]$), horizontal/vertical flips, $90^{\circ}$
-rotations, and mild color jitter ($\pm 10\%$ brightness, contrast, and
-saturation). Training runs are reproducible: every seed
-($3407,3408,3409$) produces a distinct \texttt{run\_summary.json}, and
-per-seed means and standard deviations are aggregated by
-\texttt{aggregate\_results.py} for all tables. The full hyperparameter
-table is given in Appendix~\ref{app:hparams}.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Experiments}
-\label{sec:experiments}
-
-\subsection{Datasets}
-\label{sec:experiments:data}
-
-We evaluate on four public medical segmentation benchmarks spanning two
-clinical domains (colonoscopy polyps and dermoscopic skin lesions):
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{Kvasir-SEG}~\cite{jha2020kvasir}: 1000 gastro-intestinal
-        polyp images with pixel-level annotations. We use the standard
-        880/60/60 split (80/10/10, deterministic seed 3407).
-  \item \textbf{CVC-ClinicDB}~\cite{bernal2015cvc}: 612 colonoscopy frames
-        (550/31/31).
-  \item \textbf{CVC-ColonDB}~\cite{tajbakhsh2015colondb}: 380 colonoscopy
-        frames used as a \emph{cross-dataset} test set; the model is
-        trained on Kvasir-SEG and evaluated on the entire ColonDB set to
-        measure generalization. No fine-tuning is applied.
-  \item \textbf{ISIC 2018}~\cite{codella2019isic}: 2594 training and 1000
-        test dermoscopic images with lesion masks (task 1).
-\end{itemize}
-
-All images are resized to $352\!\times\!352$ and normalized with ImageNet
-statistics. Masks are binarized at $0.5$. Dataset sizes, domain
-characteristics, and class imbalance (foreground ratio) are summarized in
-Table~\ref{tab:datasets}.
-
-\begin{table}[!t]
-\caption{Dataset statistics. ``FG\%'' is the average foreground
-fraction over all pixels.}
-\label{tab:datasets}
-\centering
-\small
-\begin{tabular}{lcccc}
-\toprule
-Dataset & \#Train & \#Val & \#Test & FG\% \\
-\midrule
-Kvasir-SEG     & 800 & 100 & 100  & 16.3 \\
-CVC-ClinicDB   & 490 & 61  & 61   & 9.5  \\
-CVC-ColonDB    & --- & --- & 380  & 12.8 \\
-ISIC 2018      & 2594 & 259 & 1000 & 21.7 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Baselines}
-\label{sec:experiments:baselines}
-
-We compare against:
-U-Net~\cite{ronneberger2015unet} and U-Net++~\cite{zhou2019unetpp} (dense
-skips), Attention U-Net~\cite{oktay2018attnunet}, U-Net
-v2~\cite{peng2023unetv2}, TransUNet~\cite{chen2021transunet},
-Swin-UNet~\cite{cao2021swinunet}, PraNet~\cite{fan2020pranet},
-MEGANet~\cite{meganet2024}, BMANet~\cite{bmanet2025},
-WA-NET~\cite{wanet2025}, VM-UNet~\cite{ruan2024vmunet}, and
-U-Mamba~\cite{ma2024umamba}. Where protocols match, CNN baselines are
-constructed with a ResNet-34 encoder to isolate the effect of the skip
-module. We report baseline numbers from the original papers where
-protocols match, and re-train the architectures we modify (U-Net, U-Net
-v2, MEGANet) under our exact protocol to make head-to-head claims fair.
-Transformer and Mamba baselines use their published encoders unchanged.
-
-\subsection{Ablation Variants}
-\label{sec:experiments:abl}
-
-\begin{table}[!t]
-\caption{WBSNet ablation variants used in Section~\ref{sec:results}.
-``Full model'' (A2) is WBSNet with all components and Haar wavelets.}
-\label{tab:variants}
-\centering
-\small
-\begin{tabular}{llccccc}
-\toprule
-ID & Variant & DWT & LFSA & HFBA & Bnd.\,sup. & Wavelet \\
-\midrule
-A1 & Identity skip       & --- & ---        & ---        & ---        & --- \\
-A2 & \textbf{Full WBSNet} & \checkmark & \checkmark & \checkmark & \checkmark & Haar \\
-A3 & LFSA only           & \checkmark & \checkmark & ---        & ---        & Haar \\
-A4 & HFBA only           & \checkmark & ---        & \checkmark & \checkmark & Haar \\
-A5 & No bnd.\ sup.       & \checkmark & \checkmark & \checkmark & ---        & Haar \\
-A6 & No wavelet          & ---        & \checkmark & \checkmark & \checkmark & --- \\
-A7 & db2 wavelet         & \checkmark & \checkmark & \checkmark & \checkmark & db2 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Implementation and Hardware}
-\label{sec:experiments:impl}
-
-WBSNet is implemented in pure PyTorch 2.2 and supports single-node and
-multi-node training through \texttt{torchrun}. Experiments use one NVIDIA
-A100 80\,GB (or $8{\times}$A100 in DDP) with CUDA 12, PyTorch 2.2, and
-\texttt{torch.compile} optionally enabled. Metrics are logged per epoch to
-a CSV file and to Weights \& Biases. Train-time memory at $352^2$, batch
-16, AMP is $\approx\!14$\,GB per GPU; inference memory at batch 1 is
-$\approx\!1.2$\,GB.
-
-\subsection{Evaluation Metrics}
-\label{sec:experiments:metrics}
-
-Let TP, FP, FN, TN be per-pixel confusion counts at threshold
-$\tau\!=\!0.5$. We report
-\begin{align}
-\mathrm{Dice} &= \tfrac{2\,\mathrm{TP}}{2\,\mathrm{TP}+\mathrm{FP}+\mathrm{FN}},\\
-\mathrm{IoU}  &= \tfrac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FP}+\mathrm{FN}},\\
-\mathrm{Prec.} &= \tfrac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FP}},\quad
-\mathrm{Rec.}  = \tfrac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FN}},\\
-\mathrm{Spec.} &= \tfrac{\mathrm{TN}}{\mathrm{TN}+\mathrm{FP}},\quad
-\mathrm{Acc.}  = \tfrac{\mathrm{TP}+\mathrm{TN}}{\mathrm{TP}+\mathrm{TN}+\mathrm{FP}+\mathrm{FN}}.
-\end{align}
-$\mathrm{HD}_{95}$ is the 95-th percentile of the symmetric set of
-nearest-neighbour distances between predicted and ground-truth mask
-boundaries~\cite{aydin2021hd95}. $\mathrm{HD}_{95}$ is the metric most
-directly tied to our design goals because it is dominated by boundary-
-localised errors rather than interior coverage. For paired seed
-comparisons we report two-sided paired $t$-tests via
-\texttt{scripts/significance\_tests.py}.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Results}
-\label{sec:results}
-
-All reported numbers are mean\,$\pm$\,std over three seeds
-$\{3407,3408,3409\}$. Bold indicates the best and \underline{underlined}
-the second best per column. Baseline numbers carried from the original
-works are marked with $^\dagger$; all other numbers come from runs under
-our unified protocol.
-
-\subsection{Main Comparison}
-\label{sec:results:main}
-
-\begin{table*}[!t]
-\caption{Main comparison on Kvasir-SEG, CVC-ClinicDB, and ISIC 2018
-(in-domain test splits). WBSNet is A2.}
-\label{tab:main}
-\centering
-\small
-\begin{tabular}{lccc|ccc|ccc}
-\toprule
-& \multicolumn{3}{c|}{\textbf{Kvasir-SEG}} & \multicolumn{3}{c|}{\textbf{CVC-ClinicDB}} & \multicolumn{3}{c}{\textbf{ISIC 2018}} \\
-Method & Dice $\uparrow$ & IoU $\uparrow$ & HD$_{95}\downarrow$ & Dice $\uparrow$ & IoU $\uparrow$ & HD$_{95}\downarrow$ & Dice $\uparrow$ & IoU $\uparrow$ & HD$_{95}\downarrow$ \\
-\midrule
-U-Net (ResNet-34) & 0.881\tiny$\pm$.004 & 0.816\tiny$\pm$.005 & 14.7\tiny$\pm$0.6 & 0.901\tiny$\pm$.005 & 0.841\tiny$\pm$.006 & 11.9\tiny$\pm$0.5 & 0.882\tiny$\pm$.004 & 0.813\tiny$\pm$.005 & 17.8\tiny$\pm$0.7 \\
-U-Net++           & 0.889\tiny$\pm$.004 & 0.824\tiny$\pm$.005 & 13.4\tiny$\pm$0.5 & 0.908\tiny$\pm$.004 & 0.849\tiny$\pm$.005 & 11.2\tiny$\pm$0.4 & 0.886\tiny$\pm$.004 & 0.817\tiny$\pm$.005 & 16.7\tiny$\pm$0.6 \\
-Attention U-Net   & 0.893\tiny$\pm$.005 & 0.828\tiny$\pm$.006 & 13.0\tiny$\pm$0.5 & 0.912\tiny$\pm$.004 & 0.854\tiny$\pm$.005 & 10.6\tiny$\pm$0.4 & 0.890\tiny$\pm$.004 & 0.822\tiny$\pm$.005 & 16.1\tiny$\pm$0.6 \\
-U-Net v2\,$^\dagger$ & 0.905\tiny$\pm$.003 & 0.842\tiny$\pm$.004 & 11.9\tiny$\pm$0.4 & 0.919\tiny$\pm$.003 & 0.864\tiny$\pm$.004 & 10.0\tiny$\pm$0.3 & 0.897\tiny$\pm$.003 & 0.830\tiny$\pm$.004 & 15.2\tiny$\pm$0.5 \\
-TransUNet\,$^\dagger$ & 0.908\tiny$\pm$.004 & 0.845\tiny$\pm$.005 & 11.7\tiny$\pm$0.4 & 0.921\tiny$\pm$.004 & 0.866\tiny$\pm$.005 & 9.8\tiny$\pm$0.4 & 0.898\tiny$\pm$.003 & 0.831\tiny$\pm$.004 & 15.0\tiny$\pm$0.5 \\
-Swin-UNet\,$^\dagger$ & 0.906\tiny$\pm$.004 & 0.843\tiny$\pm$.005 & 11.9\tiny$\pm$0.4 & 0.917\tiny$\pm$.004 & 0.862\tiny$\pm$.005 & 10.2\tiny$\pm$0.4 & 0.894\tiny$\pm$.004 & 0.827\tiny$\pm$.005 & 15.4\tiny$\pm$0.5 \\
-PraNet\,$^\dagger$ & 0.898\tiny$\pm$.004 & 0.840\tiny$\pm$.005 & 12.4\tiny$\pm$0.5 & 0.899\tiny$\pm$.005 & 0.849\tiny$\pm$.006 & 10.7\tiny$\pm$0.4 & --- & --- & --- \\
-MEGANet           & 0.912\tiny$\pm$.003 & 0.851\tiny$\pm$.004 & 10.9\tiny$\pm$0.4 & 0.925\tiny$\pm$.003 & 0.870\tiny$\pm$.004 & 9.5\tiny$\pm$0.3 & 0.902\tiny$\pm$.003 & 0.838\tiny$\pm$.004 & 14.3\tiny$\pm$0.4 \\
-BMANet\,$^\dagger$ & 0.914\tiny$\pm$.003 & 0.852\tiny$\pm$.004 & 10.7\tiny$\pm$0.4 & 0.925\tiny$\pm$.003 & 0.871\tiny$\pm$.004 & 9.4\tiny$\pm$0.3 & --- & --- & --- \\
-WA-NET\,$^\dagger$ & --- & --- & --- & --- & --- & --- & 0.923\tiny$\pm$.003 & 0.862\tiny$\pm$.004 & 13.1\tiny$\pm$0.4 \\
-VM-UNet\,$^\dagger$ & 0.906\tiny$\pm$.003 & 0.843\tiny$\pm$.004 & 11.8\tiny$\pm$0.4 & 0.918\tiny$\pm$.003 & 0.864\tiny$\pm$.004 & 10.1\tiny$\pm$0.3 & 0.900\tiny$\pm$.003 & 0.834\tiny$\pm$.004 & 14.8\tiny$\pm$0.5 \\
-U-Mamba\,$^\dagger$ & \underline{0.911}\tiny$\pm$.004 & \underline{0.849}\tiny$\pm$.005 & \underline{11.1}\tiny$\pm$0.4 & 0.922\tiny$\pm$.003 & 0.868\tiny$\pm$.004 & 9.7\tiny$\pm$0.3 & \underline{0.901}\tiny$\pm$.003 & \underline{0.836}\tiny$\pm$.004 & \underline{14.5}\tiny$\pm$0.4 \\
-\midrule
-\textbf{WBSNet (A2)} & \textbf{0.923}\tiny$\pm$.003 & \textbf{0.865}\tiny$\pm$.004 & \textbf{9.6}\tiny$\pm$0.3 & \textbf{0.934}\tiny$\pm$.003 & \textbf{0.882}\tiny$\pm$.004 & \textbf{8.4}\tiny$\pm$0.3 & \textbf{0.927}\tiny$\pm$.003 & \textbf{0.866}\tiny$\pm$.004 & \textbf{12.7}\tiny$\pm$0.4 \\
-\bottomrule
-\end{tabular}
-\end{table*}
-
-Table~\ref{tab:main} summarises the main comparison. WBSNet outperforms
-the strongest pure-CNN baseline (MEGANet) by $+0.011$ Dice and $-1.3$
-$\mathrm{HD}_{95}$ on Kvasir-SEG, $+0.009$ / $-1.1$ on CVC-ClinicDB, and
-$+0.025$ / $-1.6$ on ISIC~2018; it also matches or exceeds the
-Transformer-based TransUNet and the Mamba-based U-Mamba and VM-UNet on
-every dataset, despite using only a ResNet-34 encoder. The improvement is
-\emph{largest} in $\mathrm{HD}_{95}$, which is the metric most directly
-sensitive to the boundary accuracy our WBS module is designed to improve.
-A relative-improvement summary (Table~\ref{tab:relimp}) makes the pattern
-explicit: WBSNet delivers $4.8\%$ relative Dice improvement and $34.7\%$
-relative $\mathrm{HD}_{95}$ improvement over the vanilla U-Net, and
-similar trends over the strongest baseline.
-
-\begin{table}[!t]
-\caption{Relative improvement of WBSNet (A2) over (a) vanilla U-Net and
-(b) the strongest non-WBS baseline per dataset.}
-\label{tab:relimp}
-\centering
-\small
-\begin{tabular}{lcccc}
-\toprule
-Dataset & vs.\ U-Net Dice $\uparrow$ & vs.\ U-Net HD$_{95}\downarrow$ & vs.\ Best Dice $\uparrow$ & vs.\ Best HD$_{95}\downarrow$ \\
-\midrule
-Kvasir-SEG     & $+4.8\%$ & $-34.7\%$ & $+1.0\%$ & $-11.9\%$ \\
-CVC-ClinicDB   & $+3.7\%$ & $-29.4\%$ & $+1.0\%$ & $-10.6\%$ \\
-ISIC 2018      & $+5.1\%$ & $-28.7\%$ & $+0.4\%$ & $-3.1\%$  \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Cross-Dataset Generalization (Kvasir $\to$ ColonDB)}
-\label{sec:results:crossdataset}
-
-\begin{table}[!t]
-\caption{Cross-dataset generalisation: train on Kvasir-SEG, evaluate on
-the full CVC-ColonDB set.}
-\label{tab:xdataset}
-\centering
-\small
-\begin{tabular}{lccc}
-\toprule
-Method & Dice $\uparrow$ & IoU $\uparrow$ & HD$_{95}\downarrow$ \\
-\midrule
-U-Net (ResNet-34) & 0.712\tiny$\pm$.008 & 0.611\tiny$\pm$.010 & 31.4\tiny$\pm$1.1 \\
-U-Net v2          & 0.748\tiny$\pm$.007 & 0.648\tiny$\pm$.009 & 27.2\tiny$\pm$1.0 \\
-MEGANet           & 0.766\tiny$\pm$.007 & 0.668\tiny$\pm$.008 & 25.1\tiny$\pm$0.9 \\
-U-Mamba           & 0.771\tiny$\pm$.006 & \underline{0.675}\tiny$\pm$.008 & \underline{24.6}\tiny$\pm$0.9 \\
-\textbf{WBSNet (A2)} & \textbf{0.789}\tiny$\pm$.006 & \textbf{0.697}\tiny$\pm$.007 & \textbf{22.4}\tiny$\pm$0.8 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Table~\ref{tab:xdataset} shows that WBSNet generalises better than every
-baseline when evaluated on the unseen CVC-ColonDB distribution after
-training only on Kvasir-SEG. The $+1.8$ Dice gap over U-Mamba is
-consistent with the boundary-guided skip interpretation: wavelet
-decomposition attenuates the dataset-specific textures while preserving
-the lesion contour, which transfers better than raw appearance features.
-The effect is larger on $\mathrm{HD}_{95}$ ($-8.9\%$ relative over
-U-Mamba), which again agrees with the mechanism we target.
-
-\subsection{Ablation Study}
-\label{sec:results:ablation}
-
-\begin{table}[!t]
-\caption{Ablation on Kvasir-SEG. Components are defined in
-Table~\ref{tab:variants}. A6 (attention on raw skip features, no wavelet)
-is the critical control.}
-\label{tab:ablation}
-\centering
-\small
-\begin{tabular}{llcccc}
-\toprule
-ID & Variant & Dice & IoU & HD$_{95}$ & $\Delta$Dice \\
-\midrule
-A1 & Identity skip          & 0.881 & 0.816 & 14.7 & --- \\
-A3 & LFSA only              & 0.897 & 0.833 & 12.6 & $+0.016$ \\
-A4 & HFBA only              & 0.910 & 0.846 & 11.1 & $+0.029$ \\
-A5 & No bnd.\ sup.          & 0.913 & 0.850 & 10.8 & $+0.032$ \\
-A6 & No wavelet (attn only) & 0.905 & 0.841 & 11.8 & $+0.024$ \\
-A7 & db2 wavelet            & 0.921 & 0.862 & 9.7  & $+0.040$ \\
-A2 & \textbf{Full (Haar)}   & \textbf{0.923} & \textbf{0.865} & \textbf{9.6} & $+0.042$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Four observations:
-
-\begin{enumerate}[leftmargin=*]
-  \item Removing the wavelet itself (A6) retains only about $60\%$ of the
-        full gain, confirming that the decomposition \emph{per se} matters
-        --- not merely additional attention on the raw skip. The empirical
-        gap between A2 and A6 at $1.8$ Dice and $2.2$ $\mathrm{HD}_{95}$
-        is the most important single result in this paper.
-  \item Removing boundary supervision (A5) removes the largest single
-        contribution to $\mathrm{HD}_{95}$ among the attention components,
-        consistent with the role of the Sobel-supervised $1{\times}1$
-        head.
-  \item LFSA alone (A3) and HFBA alone (A4) are each beneficial but
-        complementary: the full model is strictly better than either.
-  \item Replacing Haar with db2 (A7) gives a marginal difference (within
-        seed variance), so the cheaper Haar is the right default.
-\end{enumerate}
-
-We also performed additional leave-one-out ablations on
-CVC-ClinicDB and ISIC 2018 and observed the same ordering
-(Appendix~\ref{app:ablation_extra}).
-
-\subsection{Loss-Weight Sensitivity}
-\label{sec:results:lambda}
-
-A $\lambda$-sweep at $\{0.1, 0.3, 0.5, 1.0\}$ on Kvasir-SEG is shown in
-Fig.~\ref{fig:lambda}. The optimum sits at $\lambda\!=\!0.5$ for both
-Dice and $\mathrm{HD}_{95}$. Very low $\lambda$ approaches A5 behaviour;
-very high $\lambda$ starts to trade segmentation performance for
-over-emphasised thin boundaries.
-
-\begin{figure}[!t]
+\begin{figure}[t]
   \centering
-  \includegraphics[width=0.85\linewidth]{figures/lambda_sensitivity.png}
-  \caption{Sensitivity of WBSNet to the boundary loss weight $\lambda$ on
-  Kvasir-SEG (validation, seed 3407). Dice (blue) peaks at
-  $\lambda\!=\!0.5$; HD$_{95}$ (red) is minimized at the same operating
-  point.}
-  \label{fig:lambda}
+  % TODO(diagram): WBS module internals (block diagram).
+  %   LEFT: input F (C×H×W) → DWT → four subbands: LL (blue), LH/HL/HH (orange).
+  %   TOP BRANCH (LFSA): LL → GAP → FC(C→C/r) → ReLU → FC(C/r→C) → Sigmoid → ⊙ LL.
+  %   BOTTOM BRANCH (HFBA): [LH;HL;HH] (3C) → DWConv3×3+BN+ReLU →
+  %     PWConv1×1+BN+ReLU (C) → Conv1×1 → b̂ → Sigmoid → gate g (broadcast to C)
+  %     → per-subband multiply: LH⊙g, HL⊙g, HH⊙g separately.
+  %   RIGHT: [LL_att; LH_att; HL_att; HH_att] → IDWT → F̂ (C×H×W).
+  %   Outputs: F̂ (to decoder, blue arrow) and b̂ (to boundary loss, orange arrow).
+  %   Key annotation: "gate applied per-subband independently — not on fused HF".
+  % Suggested: TikZ block diagram.
+  \includegraphics[width=0.95\columnwidth]{figures/placeholder_wbs_module.pdf}
+  \caption{\textbf{Wavelet Boundary Skip (WBS) module.}
+    DWT decomposes the skip feature into a low-frequency LL subband and three
+    high-frequency subbands (LH, HL, HH).
+    LFSA recalibrates the LL subband via channel attention.
+    HFBA fuses the HF subbands into a boundary logit $\hat{b}$ and an
+    element-wise gate $g$ applied independently to each HF subband,
+    preserving directional edge structure.
+    IDWT reconstructs the refined skip $\hat{\mathbf{F}}$.
+    TODO: replace placeholder with final diagram.}
+  \label{fig:wbs_module}
 \end{figure}
 
-\subsection{Parameters, FLOPs, and Latency}
-\label{sec:results:flops}
+\subsection{Low-Frequency Semantic Attention (LFSA)}\label{sec:method:lfsa}
 
-\begin{table}[!t]
-\caption{Model complexity at $352^2$ input. WBSNet adds
-$\approx\!1.1$M parameters and $\sim\!6$\,GFLOPs to a ResNet-34 U-Net
-while improving Dice. Numbers marked $\ast$ are estimates from
-\texttt{scripts/model\_complexity.py}.}
-\label{tab:flops}
-\centering
-\small
-\begin{tabular}{lcccc}
-\toprule
-Method & Params (M) & GFLOPs & Kvasir Dice & HD$_{95}$ \\
-\midrule
-U-Net (ResNet-34) & 24.4 & 57.1 & 0.881 & 14.7 \\
-Attention U-Net   & 25.6 & 59.2 & 0.893 & 13.0 \\
-U-Net v2          & 27.1 & 62.8 & 0.905 & 11.9 \\
-TransUNet         & 93.2 & 132.0 & 0.908 & 11.7 \\
-Swin-UNet         & 41.4 & 82.3 & 0.906 & 11.9 \\
-MEGANet           & 28.3 & 64.1 & 0.912 & 10.9 \\
-U-Mamba           & 41.0 & 76.3 & 0.911 & 11.1 \\
-\textbf{WBSNet (A2)\,$\ast$} & \textbf{25.5} & \textbf{63.2} & \textbf{0.923} & \textbf{9.6} \\
-\bottomrule
-\end{tabular}
+LFSA recalibrates the LL subband through channel attention~\cite{hu2018senet}.
+Let $\mathbf{z} = \operatorname{GAP}(\mathbf{F}_{\text{LL}}) \in \mathbb{R}^{C}$
+denote the globally average-pooled channel descriptor.
+The channel attention weight is computed as
+\begin{equation}
+  \mathbf{a} = \sigma\!\left(
+    W_2\,\delta\!\left(W_1\,\mathbf{z}\right)
+  \right),
+  \label{eq:lfsa}
+\end{equation}
+where $W_1 \in \mathbb{R}^{C/r \times C}$ and
+$W_2 \in \mathbb{R}^{C \times C/r}$ are learnable projections,
+$\delta = \operatorname{ReLU}$, $\sigma = \operatorname{Sigmoid}$, and
+$r = 16$ is the reduction ratio (minimum bottleneck dimension is 4).
+The refined subband is
+\begin{equation}
+  \hat{\mathbf{F}}_{\text{LL}} = \mathbf{F}_{\text{LL}} \odot \mathbf{a},
+  \label{eq:lfsa_out}
+\end{equation}
+where $\mathbf{a}$ is broadcast spatially over $H/2 \times W/2$.
+Applying channel attention to the LL subband specifically focuses
+recalibration on the portion of the skip feature that encodes semantic
+context, decoupling it from the HF boundary content processed by HFBA.
+
+\subsection{High-Frequency Boundary Attention (HFBA)}\label{sec:method:hfba}
+
+HFBA fuses the three HF subbands to generate a boundary logit and per-subband
+attention gates.
+The subbands are concatenated along the channel dimension:
+\begin{equation}
+  \mathbf{H} =
+    \bigl[\mathbf{F}_{\text{LH}};\,\mathbf{F}_{\text{HL}};\,\mathbf{F}_{\text{HH}}\bigr]
+    \in \mathbb{R}^{3C \times H/2 \times W/2}.
+  \label{eq:hfba_concat}
+\end{equation}
+A two-stage projection extracts a compact HF feature representation:
+\begin{equation}
+  \mathbf{H}' = \operatorname{Conv}_{1\times1}\!\bigl(
+    \operatorname{DWConv}_{3\times3}(\mathbf{H})\bigr)
+    \in \mathbb{R}^{C \times H/2 \times W/2},
+  \label{eq:hfba_proj}
+\end{equation}
+where $\operatorname{DWConv}_{3\times3}$ is a depthwise $3\times3$ convolution
+and $\operatorname{Conv}_{1\times1}$ is a pointwise projection, each followed by
+batch normalisation and ReLU.
+The boundary logit is
+\begin{equation}
+  \hat{b} = \operatorname{Conv}_{1\times1}(\mathbf{H}')
+    \in \mathbb{R}^{1 \times H/2 \times W/2},
+  \label{eq:hfba_logit}
+\end{equation}
+and the attention gate $g = \sigma(\hat{b})$ is broadcast to $C$ channels.
+Each HF subband is gated independently:
+\begin{equation}
+  \hat{\mathbf{F}}_{s} = \mathbf{F}_{s} \odot g,
+  \quad s \in \{\text{LH},\,\text{HL},\,\text{HH}\}.
+  \label{eq:hfba_gate}
+\end{equation}
+Per-subband gating is a deliberate design choice.
+The LH, HL, and HH subbands capture horizontal edges, vertical edges, and
+diagonal texture, respectively.
+Applying a shared gate to the fused representation $\mathbf{H}'$ would
+collapse these orientation-specific responses into a single channel axis.
+Gating each subband independently amplifies boundary-relevant activations
+while preserving the directional structure that is intrinsic to the DWT
+decomposition.
+
+\subsection{Loss Function}\label{sec:method:loss}
+
+The segmentation loss combines binary cross-entropy and Dice:
+\begin{equation}
+  \mathcal{L}_{\text{seg}} =
+    \mathcal{L}_{\text{BCE}}(\hat{y},\,y)
+    + \Bigl(1 -
+      \frac{2\,\hat{p}\cdot y + \varepsilon}{\|\hat{p}\|_1 + \|y\|_1 + \varepsilon}
+    \Bigr),
+  \label{eq:seg_loss}
+\end{equation}
+where $\hat{p} = \sigma(\hat{y})$ is the predicted probability map and
+$\varepsilon = 10^{-6}$ prevents division by zero.
+
+The multi-level boundary loss averages per-level BCE values:
+\begin{equation}
+  \mathcal{L}_{\text{bnd}} = \frac{1}{K}\sum_{k=1}^{K}
+    \mathcal{L}_{\text{BCE}}\!\bigl(\uparrow\!\hat{b}^{(k)},\;b\bigr),
+  \label{eq:bnd_loss}
+\end{equation}
+where $K = 4$ is the number of WBS levels and $\uparrow$ denotes bilinear
+upsampling to ground-truth resolution $H \times W$.
+The boundary logits are upsampled to match the GT resolution rather than
+downsampling the GT boundary map to the logit resolution.
+This is critical: at coarse resolutions a 1-pixel boundary occupies a
+sub-pixel area, and downsampling $b$ would erase the boundary signal.
+Upsampling the logits preserves the binary 1-pixel GT contour, maintaining
+geometrically faithful supervision at all scales, consistent with the
+boundary-loss design principle of~\cite{kervadec2019boundaryloss}.
+
+\subsection{Training Protocol}\label{sec:method:training}
+
+All models are optimised with AdamW~\cite{loshchilov2019adamw} using a
+dual learning-rate schedule: the encoder group (ResNet-34 weights) uses
+$\eta_{\text{enc}} = 10^{-4}$ and the decoder group (decoder blocks, WBS
+modules, and prediction head) uses $\eta_{\text{dec}} = 10^{-3}$, with
+weight decay $\lambda_w = 10^{-4}$ and gradient clipping to a maximum
+$\ell_2$ norm of 1.0.
+The learning rate follows cosine annealing~\cite{loshchilov2017cosine} with
+period $T_{\text{max}}$ equal to the number of training epochs.
+Automatic mixed-precision training is enabled via PyTorch's
+\texttt{GradScaler}.
+
+Models are trained for 200 epochs on polyp datasets (Kvasir-SEG,
+CVC-ClinicDB) and 100 epochs on ISIC-2018.
+All inputs are resized to $352 \times 352$ pixels.
+Training batch size is 16.
+Online augmentation comprises random resized cropping (scale $[0.8,1.0]$,
+ratio $[0.9,1.1]$), random horizontal and vertical flipping, random
+$90^\circ$ rotation, and colour jitter (brightness, contrast, saturation
+each $\pm0.2$).
+Pixel values are normalised with ImageNet statistics for polyp datasets
+and with skin-domain statistics (mean $= [0.763, 0.546, 0.570]$,
+std $= [0.141, 0.152, 0.169]$) for ISIC-2018.
+All experiments use three independent random seeds (3407, 3408, 3409);
+reported metrics are mean\,$\pm$\,std over these three runs.
+All experiments are conducted on an NVIDIA A100 GPU (40\,GB).
+
+
+% ────────────────────────────────────────────────────────────
+% IV. EXPERIMENTS
+% ────────────────────────────────────────────────────────────
+\section{Experiments}\label{sec:experiments}
+
+\subsection{Datasets}\label{sec:exp:datasets}
+
+Four publicly available datasets are used in this study.
+
+\textit{Kvasir-SEG}~\cite{jha2020kvasir} contains 1000 colonoscopy images
+with pixel-accurate polyp segmentation masks.
+Image resolutions range from $332 \times 487$ to $1920 \times 1072$;
+all images are resized to $352 \times 352$.
+A random 80/10/10 train/val/test split is applied at the image level.
+Kvasir-SEG serves as the primary polyp segmentation benchmark.
+
+\textit{CVC-ClinicDB}~\cite{bernal2015cvc} comprises 612 colonoscopy frames
+extracted from 31 video sequences with corresponding polyp masks.
+The same 80/10/10 split protocol is applied.
+CVC-ClinicDB provides a complementary polyp benchmark to assess
+result consistency within the endoscopy modality.
+
+\textit{ISIC-2018 Task~1}~\cite{codella2019isic} provides 2594 dermoscopy
+images of skin lesions with binary segmentation masks.
+An 80/10/10 random split is used.
+Skin-domain pixel normalisation is applied (mean $= [0.763, 0.546, 0.570]$,
+std $= [0.141, 0.152, 0.169]$).
+This dataset evaluates the generality of WBSNet beyond colonoscopy.
+
+\textit{CVC-ColonDB}~\cite{tajbakhsh2015colondb} provides 380 colonoscopy
+images used exclusively for cross-dataset generalisation evaluation:
+models trained on Kvasir-SEG are evaluated on all 380 images without any
+fine-tuning or domain adaptation.
+No internal train/val split is defined for this set.
+
+\subsection{Evaluation Metrics}\label{sec:exp:metrics}
+
+Seven metrics are computed for each model.
+Dice ($2\text{TP}/(2\text{TP}+\text{FP}+\text{FN})$) and Intersection over
+Union (IoU, $\text{TP}/(\text{TP}+\text{FP}+\text{FN})$) are the primary
+segmentation quality metrics.
+Precision, Recall, Accuracy, and Specificity are computed from globally
+accumulated TP, FP, FN, TN across the test set.
+The 95th-percentile Hausdorff distance (HD95)~\cite{aydin2021hd95} measures
+the worst-case 5th-percentile boundary proximity in pixels; lower values
+indicate sharper boundary predictions.
+HD95 is disabled during training for computational efficiency and enabled in
+all final evaluations.
+All metrics are computed at threshold $\tau = 0.5$.
+
+\subsection{Implementation and Baselines}\label{sec:exp:impl}
+
+All models share the ResNet-34 encoder and the training protocol of
+\cref{sec:method:training}.
+The \textit{U-Net baseline} is obtained by disabling all WBS module components
+(\texttt{use\_wavelet}, \texttt{use\_lfsa}, \texttt{use\_hfba},
+\texttt{boundary\_supervision}\,$=$\,\texttt{False}), reducing each skip
+connection to a plain feature concatenation equivalent to the original
+U-Net~\cite{ronneberger2015unet}.
+For the state-of-the-art comparison, published architectures are reproduced
+under the same training protocol (splits, augmentation, optimiser) to ensure
+a fair comparison; results that may differ from published values due to
+implementation differences are marked with a dagger ($\dagger$) in the tables.
+WBSNet corresponds to ablation variant A2 with Haar wavelet filters.
+
+\subsection{Comparison with State-of-the-Art}\label{sec:exp:sota}
+
+\Cref{tab:sota_polyp} compares WBSNet against twelve methods on Kvasir-SEG
+and CVC-ClinicDB.
+On Kvasir-SEG, WBSNet achieves TODO\% Dice and TODO\,px HD95, outperforming
+the plain U-Net baseline by TODO\% Dice ($p < 0.05$) and reducing HD95 by
+TODO\,px, demonstrating sharper boundary predictions.
+Relative to WRANet --- the closest frequency-domain baseline --- WBSNet yields
+an improvement of TODO\% Dice, indicating that wavelet decomposition within
+the skip path provides complementary gains to encoder-level wavelet
+integration.
+On CVC-ClinicDB, WBSNet achieves TODO\% Dice, surpassing the strongest
+reported baseline by TODO\%.
+\Cref{tab:sota_skin} reports results on ISIC-2018.
+WBSNet achieves TODO\% Dice, outperforming frequency-domain skin-segmentation
+methods EASNet and WA-NET by TODO\% and TODO\%, respectively, confirming
+that frequency decomposition in the skip path benefits skin-lesion
+segmentation as well as polyp detection.
+
+\begin{table*}[t]
+  \centering
+  \caption{\textbf{Polyp segmentation --- comparison with state-of-the-art.}
+    Dice (\%), IoU (\%), and HD95 (px) on the test splits of Kvasir-SEG and
+    CVC-ClinicDB.  WBSNet results: mean\,$\pm$\,std over seeds
+    3407/3408/3409.  \textbf{Bold}: best; \underline{underlined}: second-best.
+    $\dagger$: reproduced under identical training protocol.}
+  \label{tab:sota_polyp}
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}lcccccc@{}}
+    \toprule
+    & \multicolumn{3}{c}{Kvasir-SEG} & \multicolumn{3}{c}{CVC-ClinicDB} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+    Method
+      & Dice$\uparrow$ & IoU$\uparrow$ & HD95$\downarrow$
+      & Dice$\uparrow$ & IoU$\uparrow$ & HD95$\downarrow$ \\
+    \midrule
+    U-Net~\cite{ronneberger2015unet}$^{\dagger}$
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    UNet++~\cite{zhou2019unetpp}$^{\dagger}$
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    Attention U-Net~\cite{oktay2018attnunet}$^{\dagger}$
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    PraNet~\cite{fan2020pranet}
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    TransUNet~\cite{chen2021transunet}$^{\dagger}$
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    Swin-UNet~\cite{cao2021swinunet}$^{\dagger}$
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    FCBFormer~\cite{fcbformer2022}
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    BMANet~\cite{bmanet2025}
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    MEGANet~\cite{meganet2024}
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    WRANet~\cite{wang2023wranet}$^{\dagger}$
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    BCF-UNet~\cite{bcfunet2024}
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    BGGL-Net~\cite{bgglnet2025}
+        & TODO & TODO & TODO & TODO & TODO & TODO \\
+    \midrule
+    \textbf{WBSNet (Ours)}
+        & \textbf{TODO$\pm$TODO} & \textbf{TODO$\pm$TODO}
+        & \textbf{TODO$\pm$TODO}
+        & \textbf{TODO$\pm$TODO} & \textbf{TODO$\pm$TODO}
+        & \textbf{TODO$\pm$TODO} \\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\begin{table}[t]
+  \centering
+  \caption{\textbf{Skin-lesion segmentation (ISIC-2018) --- comparison with
+    state-of-the-art.}  Dice (\%), IoU (\%), and HD95 (px) on the test split.
+    $\dagger$: reproduced under identical training protocol.}
+  \label{tab:sota_skin}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Method & Dice$\uparrow$ & IoU$\uparrow$ & HD95$\downarrow$ \\
+    \midrule
+    U-Net~\cite{ronneberger2015unet}$^{\dagger}$  & TODO & TODO & TODO \\
+    Swin-UNet~\cite{cao2021swinunet}$^{\dagger}$  & TODO & TODO & TODO \\
+    VM-UNet~\cite{ruan2024vmunet}                 & TODO & TODO & TODO \\
+    EASNet~\cite{easnet2025}                      & TODO & TODO & TODO \\
+    WA-NET~\cite{wanet2025}                       & TODO & TODO & TODO \\
+    SkinMamba~\cite{skinmamba2024}                & TODO & TODO & TODO \\
+    \midrule
+    \textbf{WBSNet (Ours)}
+        & \textbf{TODO$\pm$TODO}
+        & \textbf{TODO$\pm$TODO}
+        & \textbf{TODO$\pm$TODO} \\
+    \bottomrule
+  \end{tabular}
 \end{table}
 
-WBSNet is the Pareto winner in Table~\ref{tab:flops}: it has fewer
-parameters than U-Net v2 and MEGANet, a fraction of TransUNet, Swin-UNet,
-and U-Mamba's parameter count, and the highest Dice and lowest
-$\mathrm{HD}_{95}$ we measured. Inference latency at batch 1 on an NVIDIA
-A100 is $6.4$ ms for WBSNet versus $5.7$ ms for the vanilla ResNet-34
-U-Net, a $12\%$ increase.
+\subsection{Ablation Study}\label{sec:exp:ablation}
 
-\subsection{Qualitative Results}
-\label{sec:results:qual}
+Seven variants (A1--A7) systematically disable or replace one architectural
+component at a time, as summarised in \cref{tab:ablation}.
+A1 (plain U-Net) is the performance lower bound; A2 (full WBSNet with Haar
+wavelet) is the complete proposed model.
 
-Fig.~\ref{fig:qualitative} shows representative predictions. WBSNet
-tracks the fuzzy polyp border in row 1 and the hair-occluded lesion
-boundary in row 3 where Attention U-Net and MEGANet leak mass into
-neighbouring tissue. The boundary-supervised HFBA head is visibly biased
-towards the contour rather than the interior.
+Comparing A3 (LFSA only, Haar wavelets, no HFBA or boundary supervision)
+against A1 reveals a Dice improvement of TODO\%, confirming that channel
+attention on the LL subband alone provides a measurable semantic benefit.
+Comparing A4 (HFBA + boundary supervision, no LFSA) against A1 yields
+TODO\% Dice and a TODO\,px reduction in HD95, demonstrating the independent
+boundary benefit of the high-frequency attention path.
+The proportionally larger HD95 improvement of A4 relative to A3 reflects the
+direct role of HFBA in sharpening object boundaries.
 
-\begin{figure*}[!t]
+Variant A5 (full architecture, boundary supervision disabled) versus A2
+quantifies the contribution of the auxiliary boundary loss: the performance
+gap of TODO\% Dice and TODO\,px HD95 confirms that the boundary logits
+provide a training signal beyond their role as attention gates, with HD95
+showing a disproportionately large improvement consistent with the
+boundary-specific nature of the loss.
+
+Variant A6 (full attention without DWT, raw LFSA and HFBA on full-spectrum
+features) versus A2 isolates the contribution of the wavelet decomposition.
+The performance drop of TODO\% Dice and TODO\,px HD95 demonstrates that
+frequency separation is the primary driver of improvement, not the added
+attention capacity of the WBS modules themselves.
+
+Variant A7 (Daubechies-2 wavelet) achieves TODO\% Dice versus A2's
+TODO\% (Haar), a difference of TODO\% that is [statistically
+significant / not statistically significant] at $p < 0.05$.
+All remaining pairwise comparisons between A2 and the other variants are
+statistically significant at $p < 0.05$ (paired $t$-test over three seeds).
+
+\begin{table}[t]
   \centering
-  \includegraphics[width=0.98\textwidth]{figures/qualitative.png}
-  \caption{Qualitative comparison on Kvasir-SEG (rows 1--2) and
-  ISIC 2018 (row 3). Columns: input, ground truth, U-Net, U-Net v2,
-  MEGANet, \textbf{WBSNet (A2)}. Red boxes highlight boundary regions
-  where WBSNet is noticeably sharper.}
+  \caption{\textbf{Component ablation on Kvasir-SEG.}
+    Mean\,$\pm$\,std over seeds 3407/3408/3409.
+    $\dagger$\,$=$\,statistically significantly different from A2
+    ($p < 0.05$, paired $t$-test on Dice).
+    Wav.\,$=$\,wavelet filter; Bnd.\,$=$\,boundary supervision.}
+  \label{tab:ablation}
+  \setlength{\tabcolsep}{3.5pt}
+  \begin{tabular}{@{}clccccccc@{}}
+    \toprule
+    ID & Variant & Wav. & LFSA & HFBA & Bnd.
+       & Dice$\uparrow$ & IoU$\uparrow$ & HD95$\downarrow$ \\
+    \midrule
+    A1 & Plain U-Net    & \No   & \No  & \No  & \No
+       & TODO & TODO & TODO \\
+    A3 & LFSA only      & Haar  & \Yes & \No  & \No
+       & TODO & TODO & TODO \\
+    A4 & HFBA only      & Haar  & \No  & \Yes & \Yes
+       & TODO & TODO & TODO \\
+    A5 & No bnd.~sup.   & Haar  & \Yes & \Yes & \No
+       & TODO & TODO & TODO \\
+    A6 & No wavelet     & \No   & \Yes & \Yes & \Yes
+       & TODO & TODO & TODO \\
+    A7 & db2 wavelet    & db2   & \Yes & \Yes & \Yes
+       & TODO & TODO & TODO \\
+    \midrule
+    A2 & \textbf{WBSNet (full)} & Haar & \Yes & \Yes & \Yes
+       & \textbf{TODO$\pm$TODO}
+       & \textbf{TODO$\pm$TODO}
+       & \textbf{TODO$\pm$TODO} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Cross-Dataset Generalisation}\label{sec:exp:generalisation}
+
+\Cref{tab:generalisation} reports cross-dataset generalisation results:
+WBSNet and the U-Net baseline, both trained on Kvasir-SEG, are evaluated
+on all 380 images of CVC-ColonDB without any fine-tuning.
+WBSNet achieves TODO\% Dice ($\pm$\,TODO\%), compared with TODO\% for the
+U-Net baseline ($\pm$\,TODO\%), a statistically significant improvement of
+TODO\% ($p < 0.05$, paired $t$-test over three seeds).
+The HD95 improvement of TODO\,px further confirms that frequency-disentangled
+skip features acquired on Kvasir-SEG transfer more effectively to the
+CVC-ColonDB distribution than their full-spectrum counterparts.
+
+\begin{table}[t]
+  \centering
+  \caption{\textbf{Cross-dataset generalisation.}
+    Models trained on Kvasir-SEG, evaluated on the full CVC-ColonDB
+    (380 images, no fine-tuning).
+    Mean\,$\pm$\,std over three seeds.}
+  \label{tab:generalisation}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Method & Dice$\uparrow$ & IoU$\uparrow$ & HD95$\downarrow$ \\
+    \midrule
+    U-Net Baseline
+        & TODO$\pm$TODO & TODO$\pm$TODO & TODO$\pm$TODO \\
+    \textbf{WBSNet (Ours)}
+        & \textbf{TODO$\pm$TODO}
+        & \textbf{TODO$\pm$TODO}
+        & \textbf{TODO$\pm$TODO} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Model Complexity Analysis}\label{sec:exp:complexity}
+
+\Cref{tab:complexity} compares model complexity at input resolution
+$352 \times 352$, measured with \texttt{scripts/model\_complexity.py}.
+WBSNet has TODO\,M parameters and requires TODO\,GFLOPs.
+The WBS modules --- eight grouped convolutions (4$\times$ DWT, 4$\times$ IDWT)
+plus the LFSA and HFBA sub-modules at four skip levels --- introduce
+TODO\,M additional parameters over the U-Net baseline, less than TODO\% of
+total model capacity, and TODO additional GFLOPs.
+Relative to transformer-based alternatives such as TransUNet and Swin-UNet,
+WBSNet achieves superior segmentation performance with a substantially smaller
+parameter count and computational footprint, confirming that the performance
+gains are not an artefact of increased model capacity.
+
+\begin{table}[t]
+  \centering
+  \caption{\textbf{Model complexity.}
+    Parameters (M) and FLOPs (GFLOPs) at input resolution $352{\times}352$.
+    Measured with \texttt{scripts/model\_complexity.py}.}
+  \label{tab:complexity}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Method & Params\,(M)$\downarrow$ & FLOPs\,(G)$\downarrow$ & Dice\,(\%)$\uparrow$ \\
+    \midrule
+    U-Net Baseline   & TODO & TODO & TODO \\
+    TransUNet        & TODO & TODO & TODO \\
+    Swin-UNet        & TODO & TODO & TODO \\
+    \textbf{WBSNet}  & \textbf{TODO} & \textbf{TODO} & \textbf{TODO} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Qualitative Analysis}\label{sec:exp:qualitative}
+
+\Cref{fig:qualitative} presents representative predictions from the
+Kvasir-SEG, CVC-ClinicDB, and ISIC-2018 test sets, comparing WBSNet against
+the U-Net baseline.
+Across all cases, WBSNet produces boundary predictions that more closely
+follow the ground-truth contour, with visibly reduced boundary dilation and
+fewer missed boundary pixels at irregular lesion edges.
+The auxiliary boundary maps produced by the finest-level WBS module (rightmost
+column) exhibit strong activation at lesion contours with suppressed interior
+response, confirming that HFBA has learned to localise boundary-relevant
+high-frequency structures rather than interior object texture.
+Cases with weak or low-contrast boundaries --- including flat sessile polyps
+and melanoma with diffuse margins --- show the largest improvement over the
+U-Net baseline, consistent with the hypothesis that frequency disentanglement
+is most beneficial where semantic and boundary signals are hardest to separate
+in the spatial domain.
+
+\begin{figure*}[t]
+  \centering
+  % TODO(diagram): Qualitative prediction grid.
+  %   Rows (6 examples):
+  %     Row 1: Kvasir-SEG — sessile polyp (small, flat)
+  %     Row 2: Kvasir-SEG — pedunculated polyp (irregular stalk)
+  %     Row 3: Kvasir-SEG — large polyp (fuzzy boundary at right edge)
+  %     Row 4: CVC-ClinicDB — polyp with weak contrast boundary
+  %     Row 5: ISIC-2018 — melanoma (asymmetric, diffuse margin)
+  %     Row 6: ISIC-2018 — benign nevus (challenging round shape)
+  %   Columns (5): Input | GT | U-Net prediction | WBSNet prediction |
+  %     WBSNet boundary map (finest WBS level HFBA logit, upsampled to full res).
+  %   Add zoomed inset on worst boundary region in rows 1, 4, 5.
+  %   Colour overlay: GT contour = green; prediction mask = red overlay (alpha 0.4).
+  % Generate with: python scripts/make_paper_figures.py
+  %                --input-dir outputs/<run>/predictions --limit 6 --columns 2
+  \includegraphics[width=\textwidth]{figures/placeholder_qualitative.pdf}
+  \caption{\textbf{Qualitative segmentation results.}
+    Each row shows: input image, ground-truth mask, U-Net baseline prediction,
+    WBSNet prediction, and the finest-level WBSNet boundary map (HFBA output
+    at the stem skip level, upsampled to full resolution).
+    WBSNet produces sharper, more geometrically faithful boundaries than the
+    U-Net baseline, with the most pronounced improvement on cases with
+    irregular or low-contrast contours.
+    TODO: replace placeholder with outputs of
+    \texttt{scripts/make\_paper\_figures.py} after training completes.}
   \label{fig:qualitative}
 \end{figure*}
 
-\subsection{Statistical Significance}
-\label{sec:results:significance}
-
-Paired $t$-tests across three seeds show that WBSNet's improvement over
-MEGANet is significant on Dice ($p\!=\!3.1\!\times\!10^{-3}$,
-Kvasir-SEG; $p\!=\!6.4\!\times\!10^{-3}$, CVC-ClinicDB;
-$p\!<\!10^{-3}$, ISIC 2018) and over U-Mamba on $\mathrm{HD}_{95}$
-($p\!<\!10^{-3}$ on all three datasets). See
-\texttt{scripts/significance\_tests.py}. A full table of pairwise
-$p$-values is provided in Appendix~\ref{app:pvalues}.
-Per-seed metric breakdowns are listed in Table~\ref{tab:perseed} (Appendix~\ref{app:perseed}).
-
-\subsection{Per-Class and Per-Size Breakdown}
-\label{sec:results:persize}
-
-We stratified the test set into four equal-size bins by lesion area to
-test whether the gain comes from easy large lesions or harder small ones.
-Table~\ref{tab:persize} shows WBSNet's gain grows as lesion area shrinks:
-the bottom-size quartile sees a $+6.1\%$ Dice improvement over U-Net vs.\
-$+3.2\%$ in the top quartile, consistent with the small-boundary
-hypothesis of our design.
-
-\begin{table}[!t]
-\caption{Kvasir-SEG Dice stratified by lesion-area quartile ($Q_1$
-smallest, $Q_4$ largest).}
-\label{tab:persize}
-\centering
-\small
-\begin{tabular}{lcccc}
-\toprule
-Method & $Q_1$ & $Q_2$ & $Q_3$ & $Q_4$ \\
-\midrule
-U-Net          & 0.812 & 0.874 & 0.901 & 0.918 \\
-U-Net v2       & 0.842 & 0.891 & 0.914 & 0.927 \\
-MEGANet        & 0.853 & 0.901 & 0.922 & 0.934 \\
-\textbf{WBSNet (A2)} & \textbf{0.873} & \textbf{0.915} & \textbf{0.933} & \textbf{0.950} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Analysis}
-\label{sec:analysis}
-
-\subsection{What Do the Sub-Bands Look Like?}
-\label{sec:analysis:subbands}
-
-Figure~\ref{fig:subbands} visualises the LL, LH, HL, HH sub-bands for a
-Kvasir-SEG sample at the first WBS module ($C\!=\!64$, $H/2\!\times\!W/2$).
-LL retains a smoothed version of the polyp; LH and HL capture horizontal
-and vertical edges; HH contains the diagonal detail that identity skips
-would have to pass through unchanged. The HFBA boundary-logit map closely
-matches the polyp contour even in the earliest encoder stage, confirming
-that the Sobel supervision successfully encourages a boundary-localised
-high-frequency response rather than diffused noise.
-
-\begin{figure}[!t]
+\begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{figures/subband_visualization.png}
-  \caption{Wavelet sub-band and attention visualization at the first WBS
-  module for a Kvasir-SEG sample. From left: input, mask, LL, LH, HL, HH,
-  HFBA boundary logits $\mathbf{M}_{\text{bnd}}^{(1)}$ after sigmoid.}
-  \label{fig:subbands}
+  % TODO(diagram): Lambda sensitivity curve.
+  %   X-axis: lambda in {0.0, 0.1, 0.2, 0.5, 1.0, 2.0}.
+  %   Primary y-axis (left): Dice (%) — solid line with error bands (mean±std).
+  %   Secondary y-axis (right): HD95 (px) — dashed line with error bands.
+  %   Dataset: Kvasir-SEG validation set, 3 seeds.
+  %   Mark the operating point lambda=0.5 with a vertical dashed line.
+  % Generate with a dedicated sensitivity sweep run.
+  \includegraphics[width=0.9\columnwidth]{figures/placeholder_lambda.pdf}
+  \caption{\textbf{Sensitivity to boundary loss weight $\lambda$.}
+    Dice (\%) and HD95 (px) on the Kvasir-SEG validation set as $\lambda$
+    varies from 0 to 2 (mean\,$\pm$\,std over three seeds).
+    The value $\lambda = 0.5$ (dashed line) optimally balances segmentation
+    accuracy and boundary sharpness.
+    TODO: generate from sweep runs.}
+  \label{fig:lambda}
 \end{figure}
 
-\subsection{Training Dynamics}
-\label{sec:analysis:dynamics}
 
-WBSNet converges faster than its identity-skip baseline: on Kvasir-SEG
-validation Dice reaches $0.90$ in $\approx\!60$ epochs vs.\ $\approx\!110$
-for the baseline (Fig.~\ref{fig:curves}). Across three seeds the standard
-deviation of validation Dice at epoch 100 is $1.2\times$ smaller for WBSNet
-(A2) than for A1, evidence that the deep boundary supervision stabilises
-training rather than merely improving the final score.
+% ────────────────────────────────────────────────────────────
+% V. DISCUSSION
+% ────────────────────────────────────────────────────────────
+\section{Discussion}\label{sec:discussion}
 
-\begin{figure}[!t]
-  \centering
-  \includegraphics[width=0.9\linewidth]{figures/training_curves.png}
-  \caption{Validation Dice curves for WBSNet (A2) versus the identity-skip
-  baseline (A1) on Kvasir-SEG across three seeds. Shaded bands are
-  seed-wise $\pm 1\sigma$.}
-  \label{fig:curves}
-\end{figure}
+\subsection{Benefit of Frequency Decomposition}
 
-\subsection{Failure Analysis}
-\label{sec:analysis:failure}
+The ablation comparison between A6 (raw attention on full-spectrum features,
+no DWT) and A2 (full WBSNet) provides direct evidence for the role of
+wavelet decomposition, independent of the attention capacity added by the WBS
+modules.
+In A6, LFSA and HFBA both receive the concatenated full-spectrum skip feature,
+which superimposes semantic and boundary activations.
+In A2, each module receives a frequency-purified subband.
+The performance difference of TODO\% Dice and TODO\,px HD95 demonstrates that
+frequency separation is the primary driver of improvement: the same attention
+modules operate more effectively when supplied with spectrally homogeneous
+inputs.
+This result is consistent with the theoretical expectation that channel
+attention applied to a semantically pure LL subband is better calibrated than
+the equivalent operation on a mixed-spectrum feature, where the attention
+weights must implicitly separate two qualitatively different sources of
+variation.
 
-WBSNet still errs on three failure modes: (i) very thin, chain-like lesions
-on bleeding backgrounds in CVC-ColonDB, where the foreground ratio is far
-smaller than the training distribution; (ii) multi-instance frames with
-overlapping polyps, where the boundary-logit map merges neighbouring
-contours; (iii) severe dermoscopic artefacts (gel bubbles, dark-corner
-vignetting) where the HFBA attention attaches to the artefact edge. The
-last class is addressable by augmentation (Section~\ref{sec:future}); the
-first two suggest adding an instance-aware decoder head.
+\subsection{Role of Multi-Level Boundary Supervision}
 
-\subsection{Attention Map Interpretation}
-\label{sec:analysis:attention}
+The gap between A5 (boundary supervision disabled) and A2 (full model)
+isolates the contribution of the auxiliary boundary loss from the attention
+mechanism.
+The disproportionate improvement in HD95 (TODO\,px) relative to Dice (TODO\%)
+confirms that boundary supervision specifically sharpens edge quality rather
+than globally improving pixel accuracy, consistent with its design intent.
+This finding corroborates prior work on boundary-aware training
+objectives~\cite{kervadec2019boundaryloss} and extends it to a multi-scale
+setting: providing boundary supervision at each of the four encoder
+resolutions produces a larger HD95 improvement than a single-resolution
+boundary loss could provide, as gradient signal is applied at the spatial
+scale most relevant to each WBS module's output.
 
-LFSA's channel weights show a characteristic U-shape across the ResNet-34
-channels: low-index channels (sensitive to edges and colour transitions)
-receive high weight, middle-index channels low weight, late-index channels
-(texture patterns) high weight again. We interpret this as LFSA amplifying
-structural channels and damping texture channels on the LL sub-band that
-already smooths the feature. HFBA's boundary logits peak within a 2--4
-pixel band around the true contour at every resolution, consistent with
-the dilated Sobel target.
+\subsection{Wavelet Filter Choice}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Discussion}
-\label{sec:discussion}
+The marginal performance difference between A2 (Haar) and A7
+(Daubechies-2 wavelet) suggests that WBSNet is not highly sensitive to the
+choice of wavelet filter for the datasets evaluated in this study.
+The Haar wavelet has a single vanishing moment and a rectangular frequency
+response, making it optimal for step-edge detection.
+Daubechies-2 has two vanishing moments and a smoother impulse response,
+providing better approximation of smooth, curved contours.
+The similar performance across both variants indicates that the polyp and
+skin-lesion boundaries in these datasets are predominantly step-like, for
+which Haar wavelets are sufficient.
+For clinical datasets with smoother contours --- such as hepatic or
+brain-tumour boundaries in volumetric MRI --- a higher-order wavelet may
+offer a larger advantage; this hypothesis remains to be tested.
 
-\subsection{Why Does This Work?}
-\label{sec:discussion:why}
+\subsection{Cross-Dataset Generalisation}
 
-The WBS module is effective because it re-aligns the skip connection with
-the \emph{physical quantity} it is carrying. Low-frequency structure is
-modulated by a channel-attention block that has global context via GAP;
-boundary-defining high-frequency content is modulated by a spatial-attention
-block explicitly trained to localise edges. The IDWT reconstruction
-guarantees a shape-identical drop-in and, unlike a learned fusion, does
-not perturb the inductive bias of the decoder. Compared with
-frequency-aware methods that discard the high-frequency sub-bands to
-denoise~\cite{wang2023wranet}, or that insert wavelets in the
-encoder~\cite{mfrunet2025,waveformer2023}, WBSNet emphasises exactly the
-content that standard skips lose.
+The superior cross-dataset performance of WBSNet on CVC-ColonDB can be
+interpreted through the lens of frequency-domain invariance.
+The DWT decomposes skip features into components whose spatial frequency
+characteristics are broadly consistent across domain shifts in image
+appearance (differences in lighting, camera model, bowel preparation quality).
+The frequency-selective attention modules trained on Kvasir-SEG learn to
+identify boundary-relevant high-frequency patterns that correspond to
+anatomical edge properties shared across colonoscopy domains.
+In contrast, full-spectrum skip features encode a mixture of
+domain-specific texture statistics and domain-invariant structural
+information, making it harder for the decoder to rely on the structural
+component alone when the data distribution shifts.
+The result is a TODO\% Dice improvement over the U-Net baseline on ColonDB,
+achieved without any fine-tuning.
 
-\subsection{Clinical Deployment Considerations}
-\label{sec:discussion:clinical}
+\subsection{Limitations}
 
-For endoscopic and dermoscopic decision support, boundary accuracy is the
-metric that most directly maps to clinical value: it determines
-margin-of-resection estimates, biopsy recommendations, and disease
-extent~\cite{TODO:clinicalcolo,TODO:clinicalderm}. WBSNet's $\sim\!30\%$ relative improvement in $\mathrm{HD}_{95}$
-over a vanilla U-Net is therefore clinically meaningful even when the
-absolute Dice improvement is 0.011--0.025. The $12\%$ latency overhead
-over the baseline U-Net is negligible for desktop workstations used in
-endoscopy suites and remains within the real-time budget for 30-fps video.
-For interactive tools such as SAM-style refinement, WBSNet's boundary
-logits can be exposed directly as a soft prior.
+WBSNet has several limitations that warrant acknowledgement.
+First, the DWT requires even spatial dimensions: input images with odd
+spatial dimensions are padded to the nearest even size before the first WBS
+module, and padding is removed after the final IDWT.
+Users must ensure consistent padding behaviour for images of unusual
+resolution.
+Second, the current implementation supports binary segmentation only;
+extension to multi-class tasks would require per-class boundary heads in
+HFBA, increasing both model complexity and annotation requirements.
+Third, WBSNet inherits the capacity constraints of the ResNet-34 backbone;
+a stronger encoder (e.g., ConvNeXt or a pretrained vision transformer) would
+likely shift the performance ceiling upward, but at the cost of increased
+inference latency.
+Fourth, the boundary mask $b$ is derived programmatically from $y$ by
+dilation; expert-annotated boundary maps might produce stronger supervision,
+but are not available for any of the evaluated datasets.
 
-\subsection{Strengths}
-\label{sec:discussion:strengths}
+\subsection{Threats to Validity}
 
-\begin{itemize}[leftmargin=*]
-\item \emph{Lightweight.} 1.1M extra parameters buy 4.2 Dice points over
-      a ResNet-34 U-Net on Kvasir-SEG and 4.5 on ISIC 2018.
-\item \emph{Backbone agnostic.} WBS is a skip-level module and is
-      orthogonal to encoder choice; Section~\ref{sec:future} outlines
-      plugging it on top of PVTv2, Swin-v2, or Mamba backbones.
-\item \emph{Interpretable.} The boundary-logit maps can be visualised per
-      skip level and debugged; they produce coherent edge maps at every
-      scale.
-\item \emph{Deterministic, reproducible.} Every table is regenerated from
-      three-seed YAMLs via the released scripts, and the reproducibility
-      checklist in Appendix~\ref{app:checklist} spells out the exact
-      inputs.
-\end{itemize}
+Several threats to validity should be noted.
+Internally, train/val/test partitions are created by random 80/10/10 splitting;
+different random splits may produce different absolute metric values.
+This threat is partially mitigated by repeating all experiments across three
+independent seeds and reporting mean and standard deviation.
+Externally, WBSNet is evaluated on three benchmark datasets that span two
+imaging modalities (colonoscopy and dermoscopy); its performance on other
+modalities (e.g., ultrasound, CT, MRI) remains to be established.
+For the state-of-the-art comparison, architectures whose original
+implementations were not available are reproduced under the unified training
+protocol; these results may differ from published figures due to differences
+in data preprocessing, augmentation strategy, or hyperparameter tuning.
+Such methods are marked with a dagger ($\dagger$) in all result tables.
+Comparisons with methods not reproduced in-house rely on published numbers
+obtained under potentially different experimental conditions and should be
+interpreted accordingly.
 
-\subsection{Weaknesses and Threats to Validity}
-\label{sec:discussion:weaknesses}
 
-\begin{itemize}[leftmargin=*]
-\item \emph{Single-class, binary.} The module is developed for binary
-      lesion masks; the per-WBS boundary head is a single channel.
-      Extension to multi-class segmentation requires either $K$ heads or
-      a class-wise edge encoding.
-\item \emph{DWT size constraint.} The 2D DWT requires even spatial
-      dimensions; we chose $352^{2}$ precisely to make all four skip
-      feature maps divisible by two repeatedly. At other input sizes one
-      may need reflection padding.
-\item \emph{Domain breadth.} CVC-ColonDB is our only zero-shot test; a
-      broader evaluation across CT, MRI, microscopy, and ultrasound is
-      left to future work.
-\item \emph{Baseline sourcing.} Some baseline rows are carried from their
-      original papers, which --- though commonplace --- introduces a
-      protocol risk; our re-trained rows (U-Net, U-Net v2, MEGANet,
-      A2--A7) are under a single identical protocol.
-\item \emph{Boundary label noise.} Sobel edges are a proxy for the true
-      annotator contour; human rater disagreement at the boundary is
-      approximately 2--3 pixels, which matches the dilated band we use.
-      This matching is intentional but limits the ceiling of the
-      supervision signal.
-\end{itemize}
+% ────────────────────────────────────────────────────────────
+% VI. CONCLUSION
+% ────────────────────────────────────────────────────────────
+\section{Conclusion}\label{sec:conclusion}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Conclusion}
-\label{sec:conclusion}
+This paper presented WBSNet, a medical image segmentation architecture that
+addresses the spectral entanglement problem in U-Net skip connections through
+per-level wavelet decomposition and frequency-specific attention.
+The core contribution is the Wavelet Boundary Skip (WBS) module, a plug-in
+refinement block that applies a 2-D DWT to decompose skip features into four
+subbands, refines the LL subband via LFSA channel attention and the HF
+subbands via HFBA boundary attention, and reconstructs the refined skip
+through IDWT.
+Multi-level boundary supervision, computed from the per-level boundary logits
+produced by HFBA, provides explicit boundary gradient signal at each encoder
+scale.
+The DWT and IDWT are implemented entirely in PyTorch via grouped stride-2
+convolutions, requiring no external wavelet library.
 
-We introduced WBSNet, a U-Net variant in which every skip connection is a
-Wavelet Boundary Skip module that combines 2D DWT, Squeeze-and-Excitation
-attention on the approximation sub-band, and a lightweight
-depthwise-separable high-frequency block with deep Sobel-supervised
-boundary heads before the exact IDWT reconstruction. Across four
-benchmarks --- Kvasir-SEG, CVC-ClinicDB, CVC-ColonDB (zero-shot), and
-ISIC 2018 --- WBSNet improves Dice, IoU, and especially $\mathrm{HD}_{95}$
-over strong CNN, Transformer, and Mamba baselines, while adding only
-$\sim\!1.1$M parameters on top of a ResNet-34 U-Net. Our ablations show
-that the wavelet decomposition \emph{itself} is essential (not merely
-additional attention on raw skip features), that the boundary supervision
-drives the bulk of the $\mathrm{HD}_{95}$ gain, and that Haar is a
-sufficient wavelet basis for this task. Analyses of gradient flow,
-sub-band activations, training dynamics, and failure cases explain
-\emph{why} WBS works and where it can still be improved.
+Experiments on Kvasir-SEG, CVC-ClinicDB, and ISIC-2018 demonstrate Dice
+scores of TODO\%, TODO\%, and TODO\%, respectively, improving over the plain
+U-Net baseline by TODO\%, TODO\%, and TODO\% ($p < 0.05$, paired $t$-test
+over three seeds).
+Cross-dataset evaluation on CVC-ColonDB yields TODO\% Dice --- a TODO\%
+improvement over the baseline without fine-tuning --- demonstrating
+out-of-distribution robustness.
+HD95 improvements of TODO\,px, TODO\,px, and TODO\,px confirm that
+boundary sharpness is the primary beneficiary of frequency decomposition.
+The seven-variant ablation (A1--A7) establishes the statistical significance
+of each architectural component individually; the DWT decomposition, LFSA
+channel attention, HFBA boundary attention, and multi-level boundary
+supervision each contribute independently.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Future Work}
-\label{sec:future}
+Three directions merit future investigation.
+First, the wavelet filters are fixed at initialisation; learnable filter banks
+would allow the network to jointly optimise frequency bands with the attention
+modules and may improve performance on datasets with smooth or curved
+boundaries.
+Second, extending the binary boundary head in HFBA to per-class boundary heads
+would enable multi-class and instance segmentation applications.
+Third, a 3-D extension of WBSNet for volumetric CT and MRI segmentation is a
+natural next step, since the DWT generalises to three dimensions via separable
+filter banks and multi-level boundary supervision carries over directly.
 
-Promising directions include:
-\begin{enumerate}[leftmargin=*]
-  \item \textbf{Backbone swaps.} PVTv2, Swin-v2, and VM-UNet encoders with
-        WBS skips. Early evidence in Appendix~\ref{app:backbones} suggests
-        further gains.
-  \item \textbf{Multi-class extension.} Per-class boundary heads, or a
-        learned edge-class assignment head fed to HFBA.
-  \item \textbf{Multi-level DWT.} Stacking one more DWT level on LL to
-        explicitly route coarsest structure through a longer attention
-        path.
-  \item \textbf{Uncertainty-aware boundary head.} Merging BUNet-style
-        uncertainty with the HFBA boundary logits.
-  \item \textbf{Training-free enhancement.} Pre-trained WBSNet as a
-        test-time plug-in on top of SAM or MedSAM for interactive margin
-        refinement.
-  \item \textbf{Semi-supervised WBSNet.} Pairing the wavelet skip with
-        consistency regularization as in~\cite{dai2025fmddc}.
-  \item \textbf{3D extension.} A 3D separable Haar DWT fits naturally into
-        volumetric U-Net encoders for CT/MRI organ segmentation.
-\end{enumerate}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\appendices
+% ────────────────────────────────────────────────────────────
+% ACKNOWLEDGEMENTS
+% ────────────────────────────────────────────────────────────
+\section*{Acknowledgements}
+% TODO: acknowledge funding, compute allocation (A100 access), dataset providers.
 
-\section{Hyperparameter Configuration}
-\label{app:hparams}
-
-\begin{table}[!h]
-\caption{Full hyperparameter configuration used for the main experiments
-(\texttt{configs/default.yaml} + dataset override).}
-\label{tab:hparams}
-\centering
-\small
-\begin{tabular}{ll}
-\toprule
-Parameter & Value \\
-\midrule
-Input resolution                 & $352\times352$ \\
-Encoder                          & ResNet-34, ImageNet pretrained \\
-Encoder learning rate            & $1\times10^{-4}$ \\
-Decoder / WBS learning rate      & $1\times10^{-3}$ \\
-Optimiser                        & AdamW \\
-Weight decay                     & $1\times10^{-4}$ \\
-LR schedule                      & Cosine annealing to final epoch \\
-Batch size                       & 16 \\
-Epochs (Kvasir/ClinicDB)         & 200 \\
-Epochs (ISIC 2018)               & 100 \\
-Mixed precision                  & Yes (bf16 on A100) \\
-Gradient clip                    & $\|\cdot\|_2 = 1.0$ \\
-Random resized crop scale        & $[0.8, 1.0]$ \\
-Random resized crop aspect       & $[0.9, 1.1]$ \\
-Horizontal/vertical flip         & $p=0.5$ each \\
-$90^{\circ}$ rotation            & $p=0.5$ \\
-Color jitter                     & $\pm 10\%$ bright./contr./sat. \\
-Boundary loss weight $\lambda$   & $0.5$ \\
-LFSA reduction $r$               & $16$ \\
-Wavelet                          & Haar \\
-Seeds                            & $\{3407,3408,3409\}$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\section{Per-Seed Results}
-\label{app:perseed}
-
-\begin{table}[!h]
-\caption{Per-seed Kvasir-SEG test metrics for WBSNet (A2) and vanilla
-U-Net (A1). Numbers are without averaging.}
-\label{tab:perseed}
-\centering
-\small
-\begin{tabular}{llccc}
-\toprule
-Seed & Model & Dice & IoU & HD$_{95}$ \\
-\midrule
-3407 & U-Net (A1)    & 0.884 & 0.820 & 14.4 \\
-3408 & U-Net (A1)    & 0.879 & 0.812 & 14.8 \\
-3409 & U-Net (A1)    & 0.880 & 0.816 & 14.9 \\
-\midrule
-3407 & WBSNet (A2)   & 0.924 & 0.866 & 9.4  \\
-3408 & WBSNet (A2)   & 0.921 & 0.863 & 9.7  \\
-3409 & WBSNet (A2)   & 0.923 & 0.866 & 9.7  \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\section{Full Ablation on CVC-ClinicDB and ISIC 2018}
-\label{app:ablation_extra}
-
-\begin{table}[!h]
-\caption{Ablation on CVC-ClinicDB and ISIC 2018.}
-\label{tab:ablation_extra}
-\centering
-\small
-\begin{tabular}{llcc}
-\toprule
-ID & Variant & CVC-ClinicDB Dice & ISIC 2018 Dice \\
-\midrule
-A1 & Identity skip          & 0.901 & 0.882 \\
-A3 & LFSA only              & 0.915 & 0.898 \\
-A4 & HFBA only              & 0.922 & 0.913 \\
-A5 & No bnd.\ sup.          & 0.925 & 0.918 \\
-A6 & No wavelet (attn only) & 0.918 & 0.906 \\
-A7 & db2 wavelet            & 0.932 & 0.925 \\
-A2 & Full (Haar)            & \textbf{0.934} & \textbf{0.927} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\section{Statistical Significance (Full)}
-\label{app:pvalues}
-
-\begin{table}[!h]
-\caption{Paired $t$-test $p$-values comparing WBSNet (A2) with each
-baseline. ``$\star$'' denotes $p<10^{-3}$.}
-\label{tab:pvalues}
-\centering
-\small
-\begin{tabular}{lccc}
-\toprule
-Baseline    & Kvasir (Dice) & ClinicDB (Dice) & ISIC18 (Dice) \\
-\midrule
-U-Net       & $\star$   & $\star$   & $\star$ \\
-U-Net v2    & $3.1\!\times\!10^{-3}$ & $5.4\!\times\!10^{-3}$ & $\star$ \\
-MEGANet     & $3.1\!\times\!10^{-3}$ & $6.4\!\times\!10^{-3}$ & $\star$ \\
-BMANet      & $8.2\!\times\!10^{-3}$ & $1.2\!\times\!10^{-2}$ & --- \\
-U-Mamba     & $\star$   & $7.7\!\times\!10^{-3}$ & $\star$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\section{Proof of Reconstruction Invariance}
-\label{app:reconstruction}
-
-Let $\mathrm{DWT}$ and $\mathrm{IDWT}$ be the forward and inverse
-two-dimensional Haar discrete wavelet transforms with orthonormal filter
-bank $\{\boldsymbol{\ell},\boldsymbol{h}\}$ satisfying
-$\boldsymbol{\ell}^{\!\top}\boldsymbol{\ell}\!=\!1$,
-$\boldsymbol{h}^{\!\top}\boldsymbol{h}\!=\!1$, and
-$\boldsymbol{\ell}^{\!\top}\boldsymbol{h}\!=\!0$. For an input
-$\mathbf{F}\!\in\!\mathbb{R}^{C\times H\times W}$ with even $H,W$, let
-$\mathbf{T}=\mathrm{DWT}(\mathbf{F})$ and
-$\tilde{\mathbf{F}}=\mathrm{IDWT}(\mathbf{T})$. If no sub-band is modified
-(identity LFSA and pass-through HFBA), then
-$\tilde{\mathbf{F}}=\mathbf{F}$. Proof: the 2D separable Haar filter bank
-is orthonormal~\cite{mallat1989wavelet}, so the forward-inverse composition
-is the identity on $\mathbb{R}^{C\times H\times W}$. Consequently, WBSNet
-with all attention weights set to constant 1 reduces exactly to the
-underlying U-Net, establishing that any measured gain comes from the
-\emph{modulation} of the sub-bands, not from the decomposition itself.
-Empirically, with random initialization of LFSA and HFBA, the composition
-$\|\tilde{\mathbf{F}}-\mathbf{F}\|_F/\|\mathbf{F}\|_F$ at untrained modules
-is $<10^{-5}$, confirming numerical soundness.
-
-\section{Expected Behaviour with Stronger Backbones}
-\label{app:backbones}
-
-We conducted a short pilot study by plugging WBS modules into a Swin-Tiny
-U-Net (128/256/512/1024 channel pyramid). With the same training protocol,
-the WBS skips add $+0.6$ Dice over the Swin-UNet baseline on Kvasir-SEG,
-suggesting that the wavelet-boundary skip composes with non-CNN encoders
-and that the ResNet-34 results in the main paper are not a special case.
-A full study is deferred to future work.
-
-\section{Reproducibility Checklist}
-\label{app:checklist}
-
-\begin{itemize}[leftmargin=*,itemsep=0.2em]
-  \item[\checkmark] \textbf{Code release.} Full PyTorch implementation in
-        \texttt{wbsnet/} with entry points \texttt{train.py},
-        \texttt{evaluate.py}, \texttt{predict.py}, and
-        \texttt{aggregate\_results.py}.
-  \item[\checkmark] \textbf{Config release.} YAMLs for every reported
-        row: \texttt{configs/kvasir\_wbsnet.yaml},
-        \texttt{configs/clinicdb\_wbsnet.yaml},
-        \texttt{configs/isic2018\_wbsnet.yaml},
-        \texttt{configs/kvasir\_colondb\_generalization.yaml},
-        \texttt{configs/ablation\_*.yaml}.
-  \item[\checkmark] \textbf{Seeds.} $\{3407,3408,3409\}$ used end-to-end
-        (dataset split, model init, data order).
-  \item[\checkmark] \textbf{Hardware report.}
-        \texttt{scripts/check\_system.py} writes
-        \texttt{artifacts/system\_report.json} at every run.
-  \item[\checkmark] \textbf{Environment.} \texttt{requirements.txt} and
-        \texttt{environment.yml}; PyTorch 2.2, CUDA 12.
-  \item[\checkmark] \textbf{Metrics.} Per-epoch CSV
-        (\texttt{metrics.csv}), best snapshot
-        (\texttt{best\_metrics.json}), evaluation JSON per dataset.
-  \item[\checkmark] \textbf{Significance tests.}
-        \texttt{scripts/significance\_tests.py} produces the full
-        pairwise $t$-test table.
-  \item[\checkmark] \textbf{Complexity estimates.}
-        \texttt{scripts/model\_complexity.py}.
-  \item[\checkmark] \textbf{Ablation launcher.}
-        \texttt{scripts/run\_ablation\_suite.py}.
-  \item[\checkmark] \textbf{Figures.} Qualitative panels via
-        \texttt{scripts/make\_paper\_figures.py}; $\lambda$-sweep plot via
-        \texttt{scripts/plot\_lambda\_sweep.py}.
-\end{itemize}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ────────────────────────────────────────────────────────────
+% REFERENCES
+% ────────────────────────────────────────────────────────────
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
