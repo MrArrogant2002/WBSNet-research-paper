@@ -40,21 +40,23 @@ MyDrive/
 │       └── isic2018/A1/seed_3407/...
 │
 ├── wbsnet_kaggle_session1/                # NEW — Notebook 1 output
-│   └── paper_suite/isic2018/A2/seed_3407/...
+│   └── archives/paper_suite/isic2018/A2/seed_3407/*.tar.gz
 │
 ├── wbsnet_kaggle_session2/                # NEW — Notebook 2 output
-│   └── paper_suite/kvasir/{A2,A5,A6,A7}/seed_3408/...
+│   └── archives/paper_suite/kvasir/{A2,A5,A6,A7}/seed_3408/*.tar.gz
 │
 ├── wbsnet_kaggle_session3/                # NEW — Notebook 3 output
-│   └── paper_suite/
-│       ├── kvasir/{A1,A3,A4}/seed_3408/...
-│       └── cvc_clinicdb/{A1,A2}/seed_3408/...
+│   └── archives/paper_suite/
+│       ├── kvasir/{A1,A3,A4}/seed_3408/*.tar.gz
+│       └── cvc_clinicdb/{A1,A2}/seed_3408/*.tar.gz
 │
 └── WBSNet_outputs/                        # Colab A100 run output (still pending)
 ```
 
-Each `paper_suite/<dataset>/<variant>/seed_<seed>/<run_name>/` folder mirrors
-the layout produced by `train.py`:
+Legacy runs use expanded `paper_suite/<dataset>/<variant>/seed_<seed>/<run_name>/`
+folders. The new Kaggle notebooks store each completed run as one archive at
+`archives/paper_suite/<dataset>/<variant>/seed_<seed>/<run_name>.tar.gz`; when
+extracted, it mirrors the layout produced by `train.py`:
 
 ```
 checkpoints/best.pt              # ~99 MB
@@ -66,9 +68,10 @@ resolved_config.json
 evaluation/<dataset>_<split>.json
 ```
 
-The Colab notebook imports every `wbsnet_kaggle_session*/` root via
-`scripts/import_legacy_paper_runs.py`, which copies into `outputs/` and
-verifies forward-pass compatibility.
+The Colab notebook extracts any `archives/paper_suite/**/*.tar.gz` files first,
+then imports every `wbsnet_kaggle_session*/` root via
+`scripts/import_legacy_paper_runs.py`, which copies into `outputs/` and verifies
+forward-pass compatibility.
 
 ---
 
@@ -85,7 +88,7 @@ verifies forward-pass compatibility.
 | Per-epoch T4 | ~3–5 min |
 | Total T4 wall | ~9–12 h |
 | A100 saved | ~5–7 h ≈ 65–90 units |
-| Drive output | `MyDrive/wbsnet_kaggle_session1/paper_suite/isic2018/A2/seed_3407/` |
+| Drive output | `MyDrive/wbsnet_kaggle_session1/archives/paper_suite/isic2018/A2/seed_3407/*.tar.gz` |
 
 **Why first.** Completes seed 3407 fully. After this, the seed-3407 column of
 every paper table is "done"; the Colab run only needs to handle seeds 3408
@@ -93,7 +96,8 @@ and 3409.
 
 **Risk:** if the session terminates before epoch 150, `best.pt` may still be
 useful (it captures the best val Dice up to that point). The notebook
-configures `train.save_every=10` so a partial run leaves a usable checkpoint.
+keeps `last.pt` during active training for same-session resume, then prunes it
+after a successful archive is created.
 
 ### Session 2 — `WBSNet_Kaggle_Session2.ipynb`
 
@@ -106,7 +110,7 @@ configures `train.save_every=10` so a partial run leaves a usable checkpoint.
 | Per-config T4 wall | ~2.5–3.5 h |
 | Total T4 wall | ~10–14 h (TIGHT — see contingency) |
 | A100 saved | ~6–8 h ≈ 78–104 units |
-| Drive output | `MyDrive/wbsnet_kaggle_session2/paper_suite/kvasir/{A2,A5,A6,A7}/seed_3408/` |
+| Drive output | `MyDrive/wbsnet_kaggle_session2/archives/paper_suite/kvasir/{A2,A5,A6,A7}/seed_3408/*.tar.gz` |
 
 **Why these four.** They directly exercise WBSNet components:
 - **A2** = full WBSNet (headline ablation row)
@@ -131,7 +135,7 @@ skipped and added to the Colab queue. The notebook prints a clear
 | Per-config T4 wall | Kvasir 2.5–3 h, ClinicDB 1.7–2.5 h |
 | Total T4 wall | ~11–16 h (TIGHT) |
 | A100 saved | ~6.5–9 h ≈ 85–117 units |
-| Drive output | `MyDrive/wbsnet_kaggle_session3/paper_suite/...` |
+| Drive output | `MyDrive/wbsnet_kaggle_session3/archives/paper_suite/.../*.tar.gz` |
 
 **Why these five.** Closes out the Kvasir ablation table for seed 3408 (A1, A3, A4)
 and gives both ClinicDB rows for seed 3408. Combined with sessions 1 + 2,
@@ -228,11 +232,14 @@ Make sure the latest stability fixes (commit `cd5d3f1` or newer) are on
    - authenticate Drive via secrets
    - run a 1-epoch smoke test
    - launch the scope loop (skips a config if elapsed time would exceed 11.5 h)
-   - upload outputs to Drive every 10 min
-   - flush a final time before exit
+   - keep `/kaggle/working` under the 20 GB output cap
+   - prune interval checkpoints and archive each completed run
+   - upload one `.tar.gz` per completed run to Drive with resumable retries
+   - retry any missed archive uploads in the final cell
 6. **After session ends:** open
    `https://drive.google.com/drive/folders/...wbsnet_kaggle_session{N}` and
-   verify each variant has `checkpoints/best.pt` + `run_summary.json`.
+   verify each variant has a `.tar.gz` archive. If Drive upload failed, download
+   the same archive from the Kaggle output files.
 
 ---
 

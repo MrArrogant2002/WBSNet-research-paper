@@ -38,3 +38,4 @@ dist/
 *.ckpt
 *.log
 slurm_*.out
+*.json
