@@ -1,8 +1,8 @@
 """Import legacy Kaggle paper-run artifacts into the current output layout.
 
-The Kaggle notebook saved seed-3407 runs under:
+The legacy and Kaggle-session notebooks save runs under:
 
-    wbsnet_paper_runs/paper_suite/<dataset>/<variant>/seed_3407/<run_name>/
+    <drive-root>/paper_suite/<dataset>/<variant>/seed_<seed>/<run_name>/
 
 The current script pipeline skips completed work only when it finds:
 
@@ -44,7 +44,7 @@ class ImportSpec:
     note: str
 
 
-SEED_3407_IMPORTS: tuple[ImportSpec, ...] = (
+IMPORT_SPECS: tuple[ImportSpec, ...] = (
     ImportSpec("kvasir", "A1", "configs/ablation_identity_unet.yaml", "kvasir_a1_identity_unet", "kvasir_a1_identity_unet_seed3407", "Kvasir ablation A1"),
     ImportSpec("kvasir", "A2", "configs/kvasir_wbsnet.yaml", "kvasir_wbsnet", "kvasir_wbsnet_seed3407", "Kvasir full WBSNet"),
     ImportSpec("kvasir", "A3", "configs/ablation_lfsa_only.yaml", "kvasir_a3_lfsa_only", "kvasir_a3_lfsa_only_seed3407", "Kvasir ablation A3"),
@@ -56,6 +56,7 @@ SEED_3407_IMPORTS: tuple[ImportSpec, ...] = (
     ImportSpec("cvc_clinicdb", "A1", "configs/clinicdb_unet_baseline.yaml", "clinicdb_unet_baseline", "clinicdb_unet_baseline_seed3407", "ClinicDB U-Net baseline"),
     ImportSpec("cvc_clinicdb", "A2", "configs/clinicdb_wbsnet.yaml", "clinicdb_wbsnet", "clinicdb_wbsnet_seed3407", "ClinicDB full WBSNet"),
     ImportSpec("isic2018", "A1", "configs/isic2018_unet_baseline.yaml", "isic2018_unet_baseline", "isic2018_unet_baseline_seed3407", "ISIC2018 U-Net baseline"),
+    ImportSpec("isic2018", "A2", "configs/isic2018_wbsnet.yaml", "isic2018_wbsnet", "isic2018_wbsnet_seed3407", "ISIC2018 full WBSNet"),
 )
 
 
@@ -71,7 +72,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--legacy-root", default="wbsnet_paper_runs", help="Root of the legacy Kaggle artifact folder.")
     parser.add_argument("--output-root", default="outputs", help="Current output root to import into.")
-    parser.add_argument("--seed", type=int, default=3407, choices=[3407], help="Legacy seed to import. Only 3407 is supported.")
+    parser.add_argument("--seed", type=int, default=3407, help="Seed to import from the legacy/Kaggle paper_suite layout.")
     parser.add_argument("--overwrite", action="store_true", help="Replace destination files if they already exist.")
     parser.add_argument("--dry-run", action="store_true", help="Print the import plan without writing files.")
     parser.add_argument("--verify-forward", action="store_true", help="Run one CPU forward pass after adapting each checkpoint.")
@@ -110,12 +111,16 @@ def _adapt_state_dict(old_state_dict: dict[str, torch.Tensor], model: torch.nn.M
     return adapted
 
 
+def _run_name(spec: ImportSpec, seed: int) -> str:
+    return f"{spec.experiment_name}_seed{seed}"
+
+
 def _current_config(spec: ImportSpec, seed: int) -> dict[str, Any]:
     return load_config(
         ROOT / spec.config_path,
         overrides=[
             f"experiment.seed={seed}",
-            f"experiment.run_name={spec.run_name}",
+            f"experiment.run_name={_run_name(spec, seed)}",
             "model.encoder_pretrained=false",
         ],
     )
@@ -266,14 +271,15 @@ def _import_one(args: argparse.Namespace, spec: ImportSpec) -> dict[str, Any]:
     output_root = Path(args.output_root).resolve()
     source_run_dir = _legacy_run_dir(legacy_root, spec, args.seed)
     source_checkpoint = source_run_dir / "checkpoints" / "best.pt"
-    destination_run_dir = output_root / spec.experiment_name / spec.run_name
+    destination_run_name = _run_name(spec, args.seed)
+    destination_run_dir = output_root / spec.experiment_name / destination_run_name
     destination_checkpoint = destination_run_dir / "checkpoints" / "best.pt"
 
     result: dict[str, Any] = {
         "source": str(source_run_dir),
         "destination": str(destination_run_dir),
         "experiment_name": spec.experiment_name,
-        "run_name": spec.run_name,
+        "run_name": destination_run_name,
         "note": spec.note,
     }
     if not source_checkpoint.exists():
@@ -318,7 +324,7 @@ def _import_one(args: argparse.Namespace, spec: ImportSpec) -> dict[str, Any]:
 
 def main() -> None:
     args = parse_args()
-    results = [_import_one(args, spec) for spec in SEED_3407_IMPORTS]
+    results = [_import_one(args, spec) for spec in IMPORT_SPECS]
     imported = sum(1 for result in results if result.get("status") == "ok")
     missing = [result for result in results if result.get("status") != "ok"]
 
