@@ -75,6 +75,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=3407, help="Seed to import from the legacy/Kaggle paper_suite layout.")
     parser.add_argument("--overwrite", action="store_true", help="Replace destination files if they already exist.")
     parser.add_argument("--dry-run", action="store_true", help="Print the import plan without writing files.")
+    parser.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help="Exit successfully when some requested specs are absent. Useful when scanning multiple session roots.",
+    )
     parser.add_argument("--verify-forward", action="store_true", help="Run one CPU forward pass after adapting each checkpoint.")
     return parser.parse_args()
 
@@ -338,10 +343,11 @@ def main() -> None:
         "results": results,
     }
     if not args.dry_run:
-        save_json(Path(args.output_root) / "legacy_seed3407_import_manifest.json", manifest)
+        root_slug = Path(args.legacy_root).resolve().name or "legacy_root"
+        save_json(Path(args.output_root) / f"{root_slug}_seed{args.seed}_import_manifest.json", manifest)
 
     print(json.dumps(manifest, indent=2))
-    if missing:
+    if missing and not args.allow_missing:
         raise SystemExit(1)
 
 
