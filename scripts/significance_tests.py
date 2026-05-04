@@ -80,14 +80,27 @@ def _collect_records(root: Path) -> list[dict[str, Any]]:
     return records
 
 
+def _metric_by_seed(frame: pd.DataFrame, metric: str) -> pd.Series:
+    data = frame[["seed", metric]].dropna(subset=["seed", metric]).copy()
+    if data.empty:
+        return pd.Series(dtype="float64")
+    data[metric] = pd.to_numeric(data[metric], errors="coerce")
+    data = data.dropna(subset=[metric])
+    if data.empty:
+        return pd.Series(dtype="float64")
+    # Some runs can produce multiple evaluation records for the same seed.
+    # Collapse those records before paired tests so each seed contributes once.
+    return data.groupby("seed", sort=True)[metric].mean()
+
+
 def _paired_or_independent_test(frame_a: pd.DataFrame, frame_b: pd.DataFrame, metric: str) -> dict[str, Any]:
-    data_a = frame_a[["seed", metric]].dropna()
-    data_b = frame_b[["seed", metric]].dropna()
+    data_a = _metric_by_seed(frame_a, metric)
+    data_b = _metric_by_seed(frame_b, metric)
     if not data_a.empty and not data_b.empty:
-        shared = sorted(set(data_a["seed"]) & set(data_b["seed"]))
+        shared = sorted(set(data_a.index) & set(data_b.index))
         if len(shared) >= 2:
-            paired_a = data_a.set_index("seed").loc[shared][metric].astype(float)
-            paired_b = data_b.set_index("seed").loc[shared][metric].astype(float)
+            paired_a = data_a.loc[shared].astype(float)
+            paired_b = data_b.loc[shared].astype(float)
             statistic, p_value = stats.ttest_rel(paired_a.to_numpy(), paired_b.to_numpy())
             return {
                 "test_type": "paired_t_test",
@@ -96,8 +109,8 @@ def _paired_or_independent_test(frame_a: pd.DataFrame, frame_b: pd.DataFrame, me
                 "n_compared": int(len(shared)),
             }
 
-    values_a = frame_a[metric].dropna().astype(float)
-    values_b = frame_b[metric].dropna().astype(float)
+    values_a = data_a.dropna().astype(float)
+    values_b = data_b.dropna().astype(float)
     if len(values_a) >= 2 and len(values_b) >= 2:
         statistic, p_value = stats.ttest_ind(values_a.to_numpy(), values_b.to_numpy(), equal_var=False)
         return {
